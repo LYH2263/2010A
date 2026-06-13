@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductSku;
 use App\Models\StockMovement;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -20,7 +21,7 @@ class OrderService
      */
     public function list(int $perPage = 15, ?string $status = null, array $options = []): LengthAwarePaginator
     {
-        $q = Order::with(['items', 'refunds', 'refunds.items'])->orderBy('id', 'desc');
+        $q = Order::with(['items', 'items.product', 'items.sku', 'refunds', 'refunds.items'])->orderBy('id', 'desc');
         if ($status !== null && $status !== '') {
             $q->where('status', $status);
         }
@@ -41,6 +42,12 @@ class OrderService
         return $paginator;
     }
 
+    /**
+     * @param array{
+     *   items: array<int, array{product_id: int, product_sku_id?: int, quantity: int}>,
+     *   remark?: string
+     * } $data
+     */
     public function create(array $data): Order
     {
         $items = $data['items'] ?? [];
@@ -59,23 +66,41 @@ class OrderService
                 if (!$product || $product->status != Product::STATUS_ACTIVE) {
                     throw new \InvalidArgumentException("商品不存在或已下架：{$row['product_id']}");
                 }
+
                 $qty = (int) ($row['quantity'] ?? 0);
                 if ($qty <= 0) {
                     continue;
                 }
-                if ($product->stock < $qty) {
-                    throw new \InvalidArgumentException("商品【{$product->name}】库存不足，当前：{$product->stock}");
+
+                $sku = $this->resolveSku($product, $row);
+                if (!$sku) {
+                    throw new \InvalidArgumentException("商品【{$product->name}】SKU 不存在");
                 }
-                $subtotal = bcmul((string) $product->price, (string) $qty, 2);
+
+                if ($sku->stock < $qty) {
+                    $specText = $sku->spec_text ? "（{$sku->spec_text}）" : '';
+                    throw new \InvalidArgumentException("商品【{$product->name}{$specText}】库存不足，当前：{$sku->stock}");
+                }
+
+                $subtotal = bcmul((string) $sku->price, (string) $qty, 2);
                 $total = bcadd((string) $total, $subtotal, 2);
+
+                $skuSpecs = [];
+                foreach ($sku->specValues as $sv) {
+                    $skuSpecs[$sv->spec->name] = $sv->value;
+                }
+
                 $orderItems[] = [
                     'product_id' => $product->id,
+                    'product_sku_id' => $sku->id,
                     'product_name' => $product->name,
-                    'price' => $product->price,
+                    'sku_code' => $sku->sku,
+                    'sku_specs' => $skuSpecs,
+                    'price' => $sku->price,
                     'quantity' => $qty,
                     'subtotal' => $subtotal,
                 ];
-                $stockChanges[] = ['product' => $product, 'qty' => $qty];
+                $stockChanges[] = ['sku' => $sku, 'product' => $product, 'qty' => $qty];
             }
 
             if (empty($orderItems)) {
@@ -94,8 +119,8 @@ class OrderService
             }
 
             foreach ($stockChanges as $sc) {
-                $this->inventoryService->changeStock(
-                    $sc['product'],
+                $this->inventoryService->changeSkuStock(
+                    $sc['sku'],
                     -$sc['qty'],
                     StockMovement::SOURCE_ORDER_DEDUCT,
                     [
@@ -106,8 +131,27 @@ class OrderService
                 );
             }
 
-            return $order->load('items');
+            return $order->load(['items.product', 'items.sku']);
         });
+    }
+
+    /**
+     * 解析 SKU，兼容旧格式（只有 product_id 时取默认 SKU）
+     */
+    private function resolveSku(Product $product, array $row): ?ProductSku
+    {
+        if (!empty($row['product_sku_id'])) {
+            return ProductSku::where('id', $row['product_sku_id'])
+                ->where('product_id', $product->id)
+                ->first();
+        }
+
+        $defaultSku = $product->defaultSku;
+        if ($defaultSku) {
+            return $defaultSku;
+        }
+
+        return $product->skus->first();
     }
 
     public function updateStatus(Order $order, string $status): Order
@@ -129,10 +173,10 @@ class OrderService
                         ->sum('quantity');
                     $remaining = $item->quantity - (int) $hasRefunded;
                     if ($remaining > 0) {
-                        $product = Product::find($item->product_id);
-                        if ($product) {
-                            $this->inventoryService->changeStock(
-                                $product,
+                        $sku = $item->sku;
+                        if ($sku) {
+                            $this->inventoryService->changeSkuStock(
+                                $sku,
                                 $remaining,
                                 StockMovement::SOURCE_ORDER_CANCEL,
                                 [
@@ -141,6 +185,20 @@ class OrderService
                                     'reason' => '取消订单回补库存',
                                 ]
                             );
+                        } else {
+                            $product = Product::find($item->product_id);
+                            if ($product) {
+                                $this->inventoryService->changeStock(
+                                    $product,
+                                    $remaining,
+                                    StockMovement::SOURCE_ORDER_CANCEL,
+                                    [
+                                        'related_type' => StockMovement::RELATED_TYPE_ORDER,
+                                        'related_id' => $order->id,
+                                        'reason' => '取消订单回补库存',
+                                    ]
+                                );
+                            }
                         }
                     }
                 }
@@ -152,7 +210,7 @@ class OrderService
 
     public function find(int $id): ?Order
     {
-        $order = Order::with(['items.product', 'refunds', 'refunds.items'])->find($id);
+        $order = Order::with(['items.product', 'items.sku', 'refunds', 'refunds.items'])->find($id);
         if ($order) {
             $order->setAppends(['refund_status', 'total_refunded_amount']);
         }

@@ -126,14 +126,26 @@ export default function RefundShow() {
               </tr>
             </thead>
             <tbody>
-              {items.map((it) => (
+              {items.map((it) => {
+                const specText = it.sku_specs
+                  ? Object.entries(it.sku_specs).map(([k, v]) => `${k}: ${v}`).join(' / ')
+                  : ''
+                return (
                 <tr key={it.id} className="border-t hover:bg-orange-50/50">
-                  <td className="px-4 py-3 text-sm font-medium">{it.product_name}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-sm font-medium text-gray-800">{it.product_name}</div>
+                    {(it.sku_code || specText) && (
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {it.sku_code && <span className="inline-block bg-gray-100 px-1.5 py-0.5 rounded mr-2">SKU: {it.sku_code}</span>}
+                        {specText && <span>{specText}</span>}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-sm">¥{Number(it.price).toFixed(2)}</td>
                   <td className="px-4 py-3 text-sm">{it.quantity}</td>
                   <td className="px-4 py-3 text-sm text-red-600 font-medium">-¥{Number(it.subtotal).toFixed(2)}</td>
                 </tr>
-              ))}
+              )})}
             </tbody>
             <tfoot>
               <tr className="bg-gray-50">

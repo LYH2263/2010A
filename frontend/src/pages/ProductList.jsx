@@ -120,33 +120,44 @@ export default function ProductList() {
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">ID</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">名称</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">SKU</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">商品编码</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">分类</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">单价</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">价格</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">库存</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">状态</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {list.map((p) => (
-                    <tr key={p.id} className="hover:bg-orange-50">
-                      <td className="px-4 py-3 text-sm text-gray-500">{p.id}</td>
-                      <td className="px-4 py-3 text-sm font-medium">{p.name}</td>
-                      <td className="px-4 py-3 text-sm">{p.sku}</td>
-                      <td className="px-4 py-3 text-sm">{p.category?.name ?? '-'}</td>
-                      <td className="px-4 py-3 text-sm text-primary font-medium">¥{Number(p.price).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-sm">{p.stock}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded text-xs ${p.status ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>{p.status ? '上架' : '下架'}</span>
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <Link to={'/products/' + p.id} className="text-primary hover:underline">详情</Link>
-                        <Link to={'/products/' + p.id + '/edit'} state={{ from: 'list' }} className="text-primary hover:underline ml-2">编辑</Link>
-                        <button type="button" onClick={() => handleDelete(p.id, p.name)} className="text-red-600 hover:underline ml-2">删除</button>
-                      </td>
-                    </tr>
-                  ))}
+                  {list.map((p) => {
+                    const hasMultiSku = p.skus && p.skus.length > 1
+                    const minPrice = hasMultiSku ? Math.min(...p.skus.map(s => Number(s.price))) : Number(p.price)
+                    const maxPrice = hasMultiSku ? Math.max(...p.skus.map(s => Number(s.price))) : Number(p.price)
+                    const totalStock = hasMultiSku ? p.skus.reduce((sum, s) => sum + Number(s.stock), 0) : Number(p.stock)
+                    const priceText = minPrice === maxPrice ? `¥${minPrice.toFixed(2)}` : `¥${minPrice.toFixed(2)} ~ ¥${maxPrice.toFixed(2)}`
+
+                    return (
+                      <tr key={p.id} className="hover:bg-orange-50">
+                        <td className="px-4 py-3 text-sm text-gray-500">{p.id}</td>
+                        <td className="px-4 py-3 text-sm font-medium">
+                          <div>{p.name}</div>
+                          {hasMultiSku && <div className="text-xs text-gray-400 mt-0.5">{p.skus.length} 个 SKU</div>}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{p.sku}</td>
+                        <td className="px-4 py-3 text-sm">{p.category?.name ?? '-'}</td>
+                        <td className="px-4 py-3 text-sm text-primary font-medium">{priceText}</td>
+                        <td className="px-4 py-3 text-sm">{totalStock}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded text-xs ${p.status ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>{p.status ? '上架' : '下架'}</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <Link to={'/products/' + p.id} className="text-primary hover:underline">详情</Link>
+                          <Link to={'/products/' + p.id + '/edit'} state={{ from: 'list' }} className="text-primary hover:underline ml-2">编辑</Link>
+                          <button type="button" onClick={() => handleDelete(p.id, p.name)} className="text-red-600 hover:underline ml-2">删除</button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

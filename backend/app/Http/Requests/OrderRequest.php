@@ -17,6 +17,7 @@ class OrderRequest extends FormRequest
             'remark' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_sku_id' => ['nullable', 'exists:product_skus,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
         ];
     }

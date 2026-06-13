@@ -16,6 +16,7 @@ class InventoryAdjustRequest extends FormRequest
         return [
             'delta' => ['required', 'integer'],
             'reason' => ['nullable', 'string', 'max:255'],
+            'product_sku_id' => ['nullable', 'exists:product_skus,id'],
         ];
     }
 

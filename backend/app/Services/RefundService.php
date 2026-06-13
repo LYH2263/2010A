@@ -7,6 +7,7 @@ use App\Models\OrderItem;
 use App\Models\Refund;
 use App\Models\RefundItem;
 use App\Models\Product;
+use App\Models\ProductSku;
 use App\Models\StockMovement;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -94,7 +95,10 @@ class RefundService
                 $refundItems[] = [
                     'order_item_id' => $orderItem->id,
                     'product_id' => $orderItem->product_id,
+                    'product_sku_id' => $orderItem->product_sku_id,
                     'product_name' => $orderItem->product_name,
+                    'sku_code' => $orderItem->sku_code,
+                    'sku_specs' => $orderItem->sku_specs,
                     'price' => $orderItem->price,
                     'quantity' => $qty,
                     'subtotal' => $subtotal,
@@ -159,18 +163,34 @@ class RefundService
                     throw new \InvalidArgumentException("商品【{$refundItem->product_name}】可退数量不足");
                 }
 
-                $product = Product::where('id', $refundItem->product_id)->lockForUpdate()->first();
-                if ($product) {
-                    $this->inventoryService->changeStock(
-                        $product,
-                        $refundItem->quantity,
-                        StockMovement::SOURCE_REFUND_RESTORE,
-                        [
-                            'related_type' => StockMovement::RELATED_TYPE_REFUND,
-                            'related_id' => $lockedRefund->id,
-                            'reason' => '退款审核通过回补库存',
-                        ]
-                    );
+                if ($refundItem->product_sku_id) {
+                    $sku = ProductSku::where('id', $refundItem->product_sku_id)->lockForUpdate()->first();
+                    if ($sku) {
+                        $this->inventoryService->changeSkuStock(
+                            $sku,
+                            $refundItem->quantity,
+                            StockMovement::SOURCE_REFUND_RESTORE,
+                            [
+                                'related_type' => StockMovement::RELATED_TYPE_REFUND,
+                                'related_id' => $lockedRefund->id,
+                                'reason' => '退款审核通过回补库存',
+                            ]
+                        );
+                    }
+                } else {
+                    $product = Product::where('id', $refundItem->product_id)->lockForUpdate()->first();
+                    if ($product) {
+                        $this->inventoryService->changeStock(
+                            $product,
+                            $refundItem->quantity,
+                            StockMovement::SOURCE_REFUND_RESTORE,
+                            [
+                                'related_type' => StockMovement::RELATED_TYPE_REFUND,
+                                'related_id' => $lockedRefund->id,
+                                'reason' => '退款审核通过回补库存',
+                            ]
+                        );
+                    }
                 }
             }
 

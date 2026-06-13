@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\InventoryAdjustRequest;
 use App\Services\InventoryService;
 use App\Models\StockMovement;
+use App\Models\ProductSku;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -51,6 +52,11 @@ class InventoryController extends Controller
             $filters['product_id'] = (int) $productId;
         }
 
+        $skuId = $request->query('product_sku_id');
+        if ($skuId !== null && $skuId !== '') {
+            $filters['product_sku_id'] = (int) $skuId;
+        }
+
         $sourceType = $request->query('source_type');
         if (is_string($sourceType) && trim($sourceType) !== '') {
             $filters['source_type'] = trim($sourceType);
@@ -86,7 +92,7 @@ class InventoryController extends Controller
     public function adjust(Request $request, \App\Models\Product $product): JsonResponse|\Illuminate\View\View
     {
         if ($request->expectsJson()) {
-            return response()->json($product->load('category'));
+            return response()->json($product->load(['category', 'skus.specValues.spec']));
         }
         return view('inventory.adjust', ['product' => $product]);
     }
@@ -96,10 +102,24 @@ class InventoryController extends Controller
         try {
             $delta = (int) $request->input('delta');
             $reason = $request->input('reason') ?? '';
-            $this->inventoryService->adjust($product, $delta, (string) $reason);
-            if ($request->expectsJson()) {
-                return response()->json($product->fresh());
+            $skuId = $request->input('product_sku_id');
+
+            if ($skuId) {
+                $sku = ProductSku::where('id', $skuId)->where('product_id', $product->id)->first();
+                if (!$sku) {
+                    throw new \InvalidArgumentException('SKU 不存在');
+                }
+                $this->inventoryService->adjustSku($sku, $delta, (string) $reason);
+                if ($request->expectsJson()) {
+                    return response()->json($sku->fresh()->load('specValues.spec'));
+                }
+            } else {
+                $this->inventoryService->adjust($product, $delta, (string) $reason);
+                if ($request->expectsJson()) {
+                    return response()->json($product->fresh());
+                }
             }
+
             return redirect()->route('inventory.index')->with('success', '库存已调整');
         } catch (\Throwable $e) {
             Log::error('InventoryController@doAdjust', ['error' => $e->getMessage()]);

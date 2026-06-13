@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductSku;
 use App\Models\Refund;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,7 @@ class DashboardController extends Controller
         try {
             $productCount = Product::count();
             $orderCount = Order::count();
-            $totalStock = Product::sum('stock') ?? 0;
+            $totalStock = ProductSku::sum('stock') ?? 0;
 
             $paidOrders = Order::whereIn('status', [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_COMPLETED])->get();
             $totalAmount = '0.00';
@@ -33,7 +34,13 @@ class DashboardController extends Controller
                 $recentOrders->each(function ($o) {
                     $o->setAppends(['refund_status', 'total_refunded_amount']);
                 });
-                $lowStockProducts = Product::where('stock', '<=', 10)->orderBy('stock')->limit(8)->get();
+                $lowStockProducts = Product::with('skus')
+                    ->whereHas('skus', function ($q) {
+                        $q->where('stock', '<=', 10);
+                    })
+                    ->orderBy('id')
+                    ->limit(8)
+                    ->get();
 
                 $orderCountsByStatus = Order::selectRaw('status, count(*) as count')
                     ->groupBy('status')

@@ -13,7 +13,7 @@ class ProductRequest extends FormRequest
 
     public function rules(): array
     {
-        $id = $this->route('id'); // 编辑时路由为 products/{id}
+        $id = $this->route('id');
         return [
             'category_id' => ['nullable', 'exists:categories,id'],
             'name' => ['required', 'string', 'max:128'],
@@ -22,6 +22,15 @@ class ProductRequest extends FormRequest
             'price' => ['required', 'numeric', 'min:0'],
             'stock' => ['nullable', 'integer', 'min:0'],
             'status' => ['nullable', 'in:0,1'],
+            'specs' => ['nullable', 'array', 'min:0'],
+            'specs.*.name' => ['required_with:specs', 'string', 'max:64'],
+            'specs.*.values' => ['required_with:specs', 'array', 'min:1'],
+            'specs.*.values.*' => ['required_with:specs', 'string', 'max:64'],
+            'skus' => ['nullable', 'array', 'min:1'],
+            'skus.*.sku' => ['required_with:skus', 'string', 'max:64'],
+            'skus.*.price' => ['required_with:skus', 'numeric', 'min:0'],
+            'skus.*.stock' => ['required_with:skus', 'integer', 'min:0'],
+            'skus.*.spec_values' => ['nullable', 'array'],
         ];
     }
 

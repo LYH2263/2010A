@@ -184,9 +184,20 @@ export default function OrderShow() {
               {items.map((item) => {
                 const refundedQty = refunded[item.id] || 0
                 const remaining = item.quantity - refundedQty
+                const specText = item.sku_specs
+                  ? Object.entries(item.sku_specs).map(([k, v]) => `${k}: ${v}`).join(' / ')
+                  : (item.spec_text || '')
                 return (
                   <tr key={item.id} className="border-t hover:bg-orange-50/50">
-                    <td className="px-4 py-3 text-sm font-medium">{item.product_name}</td>
+                    <td className="px-4 py-3">
+                      <div className="text-sm font-medium text-gray-800">{item.product_name}</div>
+                      {(item.sku_code || specText) && (
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {item.sku_code && <span className="inline-block bg-gray-100 px-1.5 py-0.5 rounded mr-2">SKU: {item.sku_code}</span>}
+                          {specText && <span>{specText}</span>}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-sm">¥{Number(item.price).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm">{item.quantity}</td>
                     <td className="px-4 py-3 text-sm text-red-600">{refundedQty}</td>

@@ -3,6 +3,18 @@ import { useNavigate, Link } from 'react-router-dom'
 import { getProductsOnSale, createOrder } from '../api'
 import { useToast } from '../contexts/ToastContext'
 
+function getSpecText(sku) {
+  if (!sku) return ''
+  if (sku.spec_text) return sku.spec_text
+  if (sku.spec_values) {
+    return Object.entries(sku.spec_values).map(([k, v]) => `${k}: ${v}`).join(' / ')
+  }
+  if (sku.specValues && Array.isArray(sku.specValues)) {
+    return sku.specValues.map(sv => `${sv.spec?.name}: ${sv.value}`).filter(Boolean).join(' / ')
+  }
+  return ''
+}
+
 export default function OrderCreate() {
   const navigate = useNavigate()
   const { showToast } = useToast()
@@ -17,11 +29,39 @@ export default function OrderCreate() {
 
   useEffect(() => { load() }, [])
 
+  const handleQtyChange = (productId, skuId, value) => {
+    const key = `${productId}_${skuId}`
+    setQuantities({ ...quantities, [key]: value })
+  }
+
+  const getQty = (productId, skuId) => {
+    const key = `${productId}_${skuId}`
+    return quantities[key] ?? 0
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
-    const items = products
-      .filter((p) => (quantities[p.id] || 0) > 0)
-      .map((p) => ({ product_id: p.id, quantity: Number(quantities[p.id]) }))
+    const items = []
+    products.forEach((p) => {
+      const hasMultiSku = p.skus && p.skus.length > 1
+      if (hasMultiSku) {
+        p.skus.forEach((sku) => {
+          const qty = Number(getQty(p.id, sku.id))
+          if (qty > 0) {
+            items.push({ product_id: p.id, product_sku_id: sku.id, quantity: qty })
+          }
+        })
+      } else {
+        const skuId = p.skus && p.skus[0]?.id
+        const qty = Number(getQty(p.id, skuId || 'default'))
+        if (qty > 0) {
+          const item = { product_id: p.id, quantity: qty }
+          if (skuId) item.product_sku_id = skuId
+          items.push(item)
+        }
+      }
+    })
+
     if (items.length === 0) {
       showToast('请至少选择一件商品并填写数量')
       return
@@ -44,27 +84,65 @@ export default function OrderCreate() {
         <h1 className="text-2xl font-bold text-gray-800">创建订单</h1>
         <p className="text-gray-600 text-base mt-1">选择商品并填写数量，提交后将扣减对应库存</p>
       </div>
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-md border-2 border-gray-200 p-6 sm:p-8 max-w-2xl">
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-md border-2 border-gray-200 p-6 sm:p-8 max-w-3xl">
         <div className="space-y-5">
           <div>
             <label className="block text-base font-semibold text-gray-800 mb-2">选择商品与数量</label>
-            <div className="space-y-3">
-              {products.map((p) => (
-                <div key={p.id} className="flex flex-wrap items-center gap-3 py-2 border-b border-gray-100 last:border-0">
-                  <span className="flex-1 min-w-0 text-base font-medium text-gray-800">{p.name}</span>
-                  <span className="text-primary font-medium text-base">¥{Number(p.price).toFixed(2)}</span>
-                  <span className="text-gray-500 text-sm">库存 {p.stock}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={quantities[p.id] ?? 0}
-                    onChange={(e) => setQuantities({ ...quantities, [p.id]: e.target.value })}
-                    placeholder="0"
-                    className="w-24 rounded-lg border-2 border-gray-300 bg-white px-3 py-2 text-base text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
-                  />
-                  <span className="text-gray-500 text-sm">件</span>
-                </div>
-              ))}
+            <div className="space-y-4">
+              {products.map((p) => {
+                const hasMultiSku = p.skus && p.skus.length > 1
+                return (
+                  <div key={p.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex flex-wrap items-center gap-3 mb-2">
+                      <span className="flex-1 min-w-0 text-base font-medium text-gray-800">{p.name}</span>
+                      <span className="text-gray-500 text-sm">商品编码：{p.sku}</span>
+                    </div>
+
+                    {hasMultiSku ? (
+                      <div className="mt-3 space-y-2 pl-4 border-l-2 border-gray-100">
+                        {p.skus.map((sku) => (
+                          <div key={sku.id} className="flex flex-wrap items-center gap-3 py-1.5">
+                            <span className="flex-1 min-w-0 text-sm text-gray-600">
+                              <span className="inline-block bg-gray-100 px-2 py-0.5 rounded text-xs mr-2">{sku.sku}</span>
+                              {getSpecText(sku)}
+                            </span>
+                            <span className="text-primary font-medium text-sm">¥{Number(sku.price).toFixed(2)}</span>
+                            <span className="text-gray-500 text-xs">库存 {sku.stock}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max={sku.stock}
+                              value={getQty(p.id, sku.id)}
+                              onChange={(e) => handleQtyChange(p.id, sku.id, e.target.value)}
+                              placeholder="0"
+                              className="w-24 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                            />
+                            <span className="text-gray-500 text-xs">件</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-3 pt-2">
+                        <span className="flex-1 min-w-0 text-sm text-gray-500">
+                          {p.skus?.[0]?.sku ? `SKU：${p.skus[0].sku}` : ''}
+                        </span>
+                        <span className="text-primary font-medium text-base">¥{Number(p.price).toFixed(2)}</span>
+                        <span className="text-gray-500 text-sm">库存 {p.total_stock ?? p.stock}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max={p.total_stock ?? p.stock}
+                          value={getQty(p.id, p.skus?.[0]?.id || 'default')}
+                          onChange={(e) => handleQtyChange(p.id, p.skus?.[0]?.id || 'default', e.target.value)}
+                          placeholder="0"
+                          className="w-24 rounded-lg border-2 border-gray-300 bg-white px-3 py-2 text-base text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                        />
+                        <span className="text-gray-500 text-sm">件</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
           <div>

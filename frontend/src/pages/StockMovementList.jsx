@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
-import { getStockMovements, getProducts } from '../api'
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
+import { getStockMovements, getProducts, getProduct } from '../api'
 import Pagination from '../components/Pagination'
 import { useToast } from '../contexts/ToastContext'
 
@@ -9,18 +9,22 @@ const PER_PAGE = 15
 export default function StockMovementList() {
   const { productId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { showToast } = useToast()
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
   const [page, setPage] = useState(1)
   const [products, setProducts] = useState([])
+  const [product, setProduct] = useState(null)
   const [keyword, setKeyword] = useState('')
   const [filterProductId, setFilterProductId] = useState(productId || '')
+  const [filterSkuId, setFilterSkuId] = useState(location.state?.sku_id || '')
   const [sourceType, setSourceType] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [appliedKeyword, setAppliedKeyword] = useState('')
   const [appliedProductId, setAppliedProductId] = useState(productId || '')
+  const [appliedSkuId, setAppliedSkuId] = useState(location.state?.sku_id || '')
   const [appliedSourceType, setAppliedSourceType] = useState('')
   const [appliedDateFrom, setAppliedDateFrom] = useState('')
   const [appliedDateTo, setAppliedDateTo] = useState('')
@@ -29,6 +33,7 @@ export default function StockMovementList() {
     const params = { per_page: PER_PAGE, page: p }
     if (appliedKeyword) params.keyword = appliedKeyword
     if (appliedProductId) params.product_id = appliedProductId
+    if (appliedSkuId) params.product_sku_id = appliedSkuId
     if (appliedSourceType) params.source_type = appliedSourceType
     if (appliedDateFrom) params.date_from = appliedDateFrom
     if (appliedDateTo) params.date_to = appliedDateTo
@@ -42,12 +47,19 @@ export default function StockMovementList() {
     }).catch(() => setProducts([]))
   }, [])
 
-  useEffect(() => { load(page) }, [page, appliedKeyword, appliedProductId, appliedSourceType, appliedDateFrom, appliedDateTo])
+  useEffect(() => {
+    if (productId) {
+      getProduct(productId).then(setProduct).catch(() => setProduct(null))
+    }
+  }, [productId])
+
+  useEffect(() => { load(page) }, [page, appliedKeyword, appliedProductId, appliedSkuId, appliedSourceType, appliedDateFrom, appliedDateTo])
 
   const handleSearch = (e) => {
     e?.preventDefault()
     setAppliedKeyword(keyword.trim())
     setAppliedProductId(filterProductId)
+    setAppliedSkuId(filterSkuId)
     setAppliedSourceType(sourceType)
     setAppliedDateFrom(dateFrom)
     setAppliedDateTo(dateTo)
@@ -57,11 +69,13 @@ export default function StockMovementList() {
   const handleReset = () => {
     setKeyword('')
     setFilterProductId(productId || '')
+    setFilterSkuId('')
     setSourceType('')
     setDateFrom('')
     setDateTo('')
     setAppliedKeyword('')
     setAppliedProductId(productId || '')
+    setAppliedSkuId('')
     setAppliedSourceType('')
     setAppliedDateFrom('')
     setAppliedDateTo('')
@@ -118,19 +132,39 @@ export default function StockMovementList() {
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm min-w-[160px] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
           />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-gray-600">商品</span>
-          <select
-            value={filterProductId}
-            onChange={(e) => setFilterProductId(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm min-w-[160px] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
-          >
-            <option value="">全部商品</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}（{p.sku}）</option>
-            ))}
-          </select>
-        </label>
+        {!productId && (
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-gray-600">商品</span>
+            <select
+              value={filterProductId}
+              onChange={(e) => { setFilterProductId(e.target.value); setFilterSkuId('') }}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm min-w-[160px] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
+            >
+              <option value="">全部商品</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}（{p.sku}）</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {product && product.skus && product.skus.length > 0 && (
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-gray-600">SKU</span>
+            <select
+              value={filterSkuId}
+              onChange={(e) => setFilterSkuId(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm min-w-[140px] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
+            >
+              <option value="">全部 SKU</option>
+              {product.skus.map((sku) => (
+                <option key={sku.id} value={sku.id}>
+                {sku.sku}
+                {sku.spec_text || ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="flex flex-col gap-1">
           <span className="text-sm text-gray-600">来源类型</span>
           <select
@@ -198,7 +232,14 @@ export default function StockMovementList() {
                       <td className="px-4 py-3 text-sm text-gray-500">{m.id}</td>
                       <td className="px-4 py-3 text-sm">
                         <div className="font-medium">{m.product?.name ?? '-'}</div>
-                        <div className="text-gray-500 text-xs">{m.product?.sku ?? ''}</div>
+                        <div className="text-gray-500 text-xs">
+                          {m.product?.sku ? `商品编码：${m.product.sku}` : ''}
+                        </div>
+                        {m.sku && (
+                          <div className="text-gray-400 text-xs mt-0.5">
+                            <span className="inline-block bg-gray-100 px-1.5 py-0.5 rounded mr-1">SKU: {m.sku.sku}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm">{m.source_type_label ?? m.source_type}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{m.before_quantity}</td>

@@ -24,6 +24,7 @@ class StockMovement extends Model
 
     protected $fillable = [
         'product_id',
+        'product_sku_id',
         'source_type',
         'before_quantity',
         'delta',
@@ -48,6 +49,11 @@ class StockMovement extends Model
     public function operator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'operator_id');
+    }
+
+    public function sku(): BelongsTo
+    {
+        return $this->belongsTo(ProductSku::class, 'product_sku_id');
     }
 
     public function getSourceTypeLabelAttribute(): string

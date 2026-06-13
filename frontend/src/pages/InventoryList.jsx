@@ -6,6 +6,22 @@ import { useToast } from '../contexts/ToastContext'
 
 const PER_PAGE = 15
 
+function getSkuSpecText(sku) {
+  if (!sku) return ''
+  if (sku.spec_text) return sku.spec_text
+  if (sku.specValues && Array.isArray(sku.specValues)) {
+    return sku.specValues.map(sv => `${sv.spec?.name}: ${sv.value}`).filter(Boolean).join(' / ')
+  }
+  return ''
+}
+
+function hasLowStockSku(product) {
+  if (product.skus && product.skus.length > 0) {
+    return product.skus.some(s => s.stock <= 10)
+  }
+  return product.total_stock <= 10 || product.stock <= 10
+}
+
 export default function InventoryList() {
   const { showToast } = useToast()
   const [data, setData] = useState(null)
@@ -18,6 +34,7 @@ export default function InventoryList() {
   const [appliedKeyword, setAppliedKeyword] = useState('')
   const [appliedCategoryId, setAppliedCategoryId] = useState('')
   const [appliedLowStockOnly, setAppliedLowStockOnly] = useState(false)
+  const [expandedProducts, setExpandedProducts] = useState({})
 
   const load = (p = page) => {
     const params = { per_page: PER_PAGE, page: p }
@@ -48,13 +65,17 @@ export default function InventoryList() {
     setPage(1)
   }
 
+  const toggleExpand = (productId) => {
+    setExpandedProducts({ ...expandedProducts, [productId]: !expandedProducts[productId] })
+  }
+
   if (err) return <div className="p-4 text-center text-gray-600">加载失败，请 <button type="button" onClick={() => { setErr(null); load(page) }} className="text-primary hover:underline">重试</button></div>
   if (!data) return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent" /></div>
 
   const paginator = data.products
   const products = paginator?.data ?? (Array.isArray(data.products) ? data.products : [])
   const stats = data.stats ?? {}
-  const lowStockList = products.filter((p) => p.stock <= 10)
+  const lowStockList = products.filter(hasLowStockSku)
   const total = paginator?.total ?? products.length
   const currentPage = paginator?.current_page ?? 1
   const lastPage = paginator?.last_page ?? 1
@@ -150,30 +171,95 @@ export default function InventoryList() {
               <table className="w-full min-w-[640px] divide-y divide-gray-200">
                 <thead className="bg-primary-light">
                   <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 w-10"></th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">ID</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">商品</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">SKU</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">商品编码</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">单价</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">当前库存</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {products.map((p) => (
-                    <tr key={p.id} className={p.stock <= 10 ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-orange-50'}>
-                      <td className="px-4 py-3 text-sm text-gray-500">{p.id}</td>
-                      <td className="px-4 py-3 text-sm font-medium">{p.name}</td>
-                      <td className="px-4 py-3 text-sm">{p.sku}</td>
-                      <td className="px-4 py-3 text-sm text-primary font-medium">¥{Number(p.price ?? 0).toFixed(2)}</td>
-                      <td className={`px-4 py-3 text-sm font-medium ${p.stock <= 10 ? 'text-orange-600' : ''}`}>{p.stock}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-3">
-                          <Link to={'/inventory/' + p.id + '/adjust'} state={{ from: 'list' }} className="text-primary hover:underline">调整库存</Link>
-                          <Link to={'/inventory/movements/' + p.id} className="text-primary hover:underline">查看流水</Link>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {products.map((p) => {
+                    const isExpanded = expandedProducts[p.id]
+                    const hasMultiSku = p.skus && p.skus.length > 1
+                    const isLowStock = hasLowStockSku(p)
+                    const totalStock = p.total_stock ?? p.stock
+                    const priceRange = p.min_price !== p.max_price
+                      ? `¥${Number(p.min_price).toFixed(2)} ~ ¥${Number(p.max_price).toFixed(2)}`
+                      : `¥${Number(p.price ?? p.min_price ?? 0).toFixed(2)}`
+
+                    return (
+                      <>
+                        <tr key={p.id} className={isLowStock ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-orange-50'}>
+                          <td className="px-4 py-3">
+                            {hasMultiSku && (
+                              <button
+                                type="button"
+                                onClick={() => toggleExpand(p.id)}
+                                className="text-gray-400 hover:text-primary w-5 h-5 flex items-center justify-center"
+                                aria-label={isExpanded ? '收起' : '展开'}
+                              >
+                                <span className={`inline-block transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{p.id}</td>
+                          <td className="px-4 py-3 text-sm font-medium">{p.name}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{p.sku}</td>
+                          <td className="px-4 py-3 text-sm text-primary font-medium">{priceRange}</td>
+                          <td className={`px-4 py-3 text-sm font-medium ${isLowStock ? 'text-orange-600' : ''}`}>
+                            {totalStock}
+                            {hasMultiSku && <span className="text-gray-400 text-xs ml-1">（{p.skus.length} 个 SKU）</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-3">
+                              <Link to={'/inventory/' + p.id + '/adjust'} state={{ from: 'list' }} className="text-primary hover:underline">调整库存</Link>
+                              <Link to={'/inventory/movements/' + p.id} className="text-primary hover:underline">查看流水</Link>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && hasMultiSku && p.skus.map((sku) => {
+                          const specText = getSkuSpecText(sku)
+                          const skuLowStock = sku.stock <= 10
+                          return (
+                            <tr key={`sku-${sku.id}`} className="bg-gray-50 hover:bg-gray-100/50">
+                              <td className="px-4 py-2"></td>
+                              <td className="px-4 py-2 text-sm text-gray-400"></td>
+                              <td colSpan="true">
+                                <div className="pl-4 text-sm text-gray-600">
+                                  <span className="inline-block bg-gray-200 px-2 py-0.5 rounded text-xs mr-2 font-mono">{sku.sku}</span>
+                                  {specText}
+                                </div>
+                              </td>
+                              <td className="px-4 py-2 text-sm text-gray-500"></td>
+                              <td className="px-4 py-2 text-sm text-primary font-medium">¥{Number(sku.price).toFixed(2)}</td>
+                              <td className={`px-4 py-2 text-sm font-medium ${skuLowStock ? 'text-orange-600' : ''}">{sku.stock}</td>
+                              <td className="px-4 py-2">
+                                <div className="flex gap-3">
+                                  <Link
+                                    to={'/inventory/' + p.id + '/adjust'}
+                                    state={{ from: 'list', sku_id: sku.id }}
+                                    className="text-primary hover:underline text-sm"
+                                  >
+                                    调整
+                                  </Link>
+                                  <Link
+                                    to={'/inventory/movements/' + p.id}
+                                    state={{ sku_id: sku.id }}
+                                    className="text-primary hover:underline text-sm"
+                                  >
+                                    流水
+                                  </Link>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

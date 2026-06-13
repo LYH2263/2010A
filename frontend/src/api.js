@@ -236,12 +236,14 @@ export async function getInventory(params = {}) {
   return r.json();
 }
 
-export async function adjustInventory(productId, delta, reason = '') {
+export async function adjustInventory(productId, delta, reason = '', productSkuId = null) {
+  const body = { delta, reason }
+  if (productSkuId) body.product_sku_id = productSkuId
   const r = await fetch(BASE + '/inventory/' + productId + '/adjust', {
     method: 'POST',
     headers: headers(),
     credentials: 'include',
-    body: JSON.stringify({ delta, reason }),
+    body: JSON.stringify(body),
   });
   if (!r.ok) {
     if (r.status === 401) throw new Error('UNAUTHORIZED');
