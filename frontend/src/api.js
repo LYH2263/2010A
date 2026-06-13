@@ -500,3 +500,19 @@ export async function deleteProductImage(id) {
   }
 }
 
+export async function getSalesReport(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  const r = await fetch(BASE + '/sales-report' + (q ? '?' + q : ''), { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export function exportSalesReportUrl(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return BASE + '/sales-report/export' + (q ? '?' + q : '');
+}
+

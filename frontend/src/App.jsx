@@ -23,6 +23,7 @@ import RefundShow from './pages/RefundShow'
 import InventoryList from './pages/InventoryList'
 import InventoryAdjust from './pages/InventoryAdjust'
 import StockMovementList from './pages/StockMovementList'
+import SalesReport from './pages/SalesReport'
 
 function Layout({ children }) {
   const { user, logout } = useAuth()
@@ -49,6 +50,7 @@ function Layout({ children }) {
                 <NavLink to="/refunds" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>退款</NavLink>
                 <NavLink to="/inventory" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>库存</NavLink>
                 <NavLink to="/inventory/movements" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>库存流水</NavLink>
+                <NavLink to="/sales-report" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>销售分析</NavLink>
               </div>
             </div>
             {user && (
@@ -108,6 +110,7 @@ function AppRoutes() {
                   <Route path="/inventory/movements" element={<StockMovementList />} />
                   <Route path="/inventory/movements/:productId" element={<StockMovementList />} />
                   <Route path="/inventory/:productId/adjust" element={<InventoryAdjust />} />
+                  <Route path="/sales-report" element={<SalesReport />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </ProtectedRoute>

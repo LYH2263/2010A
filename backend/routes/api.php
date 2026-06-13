@@ -9,6 +9,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\CouponController;
+use App\Http\Controllers\SalesReportController;
 use Illuminate\Support\Facades\Route;
 
 // 公开路由（无需认证）
@@ -62,4 +63,7 @@ Route::post('coupons/validate', [CouponController::class, 'validateCoupon']);
 Route::get('product-images/config', [ProductImageController::class, 'config']);
 Route::post('product-images/upload', [ProductImageController::class, 'upload']);
 Route::delete('product-images/{id}', [ProductImageController::class, 'destroy']);
+
+Route::get('sales-report', [SalesReportController::class, 'index']);
+Route::get('sales-report/export', [SalesReportController::class, 'export']);
 });
