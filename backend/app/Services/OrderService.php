@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -17,7 +18,8 @@ class OrderService
 
     public function __construct(
         private InventoryService $inventoryService,
-        private CouponService $couponService
+        private CouponService $couponService,
+        private CustomerService $customerService
     ) {}
 
     /**
@@ -25,7 +27,7 @@ class OrderService
      */
     public function list(int $perPage = 15, ?string $status = null, array $options = []): LengthAwarePaginator
     {
-        $q = Order::with(['items', 'items.product', 'items.sku', 'refunds', 'refunds.items', 'coupons'])->orderBy('id', 'desc');
+        $q = Order::with(['items', 'items.product', 'items.sku', 'refunds', 'refunds.items', 'coupons', 'customer'])->orderBy('id', 'desc');
         if ($status !== null && $status !== '') {
             $q->where('status', $status);
         }
@@ -163,6 +165,7 @@ class OrderService
                 'total_amount' => $payableAmount,
                 'discount_amount' => $discountAmount,
                 'remark' => $data['remark'] ?? null,
+                'customer_id' => $data['customer_id'] ?? null,
             ]);
 
             foreach ($orderItems as $item) {
@@ -186,7 +189,7 @@ class OrderService
                 );
             }
 
-            return $order->load(['items.product', 'items.sku', 'coupons']);
+            return $order->load(['items.product', 'items.sku', 'coupons', 'customer']);
         });
     }
 
@@ -218,6 +221,13 @@ class OrderService
         if ($status === Order::STATUS_COMPLETED && $order->status !== Order::STATUS_SHIPPED) {
             throw new \InvalidArgumentException('仅已发货的订单可标记为已完成');
         }
+
+        $oldStatus = $order->status;
+        $shouldAddStats = in_array($status, [Order::STATUS_PAID, Order::STATUS_COMPLETED])
+            && !in_array($oldStatus, [Order::STATUS_PAID, Order::STATUS_COMPLETED]);
+        $shouldSubtractStats = $status === Order::STATUS_CANCELLED
+            && in_array($oldStatus, [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_COMPLETED]);
+
         if ($status === Order::STATUS_CANCELLED && $order->status !== Order::STATUS_CANCELLED) {
             DB::transaction(function () use ($order) {
                 foreach ($order->items as $item) {
@@ -261,13 +271,26 @@ class OrderService
                 $this->couponService->releaseByOrder($order);
             });
         }
+
         $order->update(['status' => $status]);
+
+        if ($order->customer_id) {
+            $customer = Customer::find($order->customer_id);
+            if ($customer) {
+                if ($shouldAddStats) {
+                    $this->customerService->addOrderStats($customer, (string) $order->total_amount);
+                } elseif ($shouldSubtractStats) {
+                    $this->customerService->subtractOrderStats($customer, (string) $order->total_amount);
+                }
+            }
+        }
+
         return $order;
     }
 
     public function find(int $id): ?Order
     {
-        $order = Order::with(['items.product', 'items.sku', 'refunds', 'refunds.items', 'coupons'])->find($id);
+        $order = Order::with(['items.product', 'items.sku', 'refunds', 'refunds.items', 'coupons', 'customer'])->find($id);
         if ($order) {
             $order->setAppends(['refund_status', 'total_refunded_amount']);
         }

@@ -30,6 +30,10 @@ import SupplierEdit from './pages/SupplierEdit'
 import PurchaseOrderList from './pages/PurchaseOrderList'
 import PurchaseOrderCreate from './pages/PurchaseOrderCreate'
 import PurchaseOrderShow from './pages/PurchaseOrderShow'
+import CustomerList from './pages/CustomerList'
+import CustomerCreate from './pages/CustomerCreate'
+import CustomerEdit from './pages/CustomerEdit'
+import CustomerShow from './pages/CustomerShow'
 
 function Layout({ children }) {
   const { user, logout } = useAuth()
@@ -54,6 +58,7 @@ function Layout({ children }) {
                 <NavLink to="/suppliers" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>供应商</NavLink>
                 <NavLink to="/purchase-orders" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>采购单</NavLink>
                 <NavLink to="/orders" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>订单</NavLink>
+                <NavLink to="/customers" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>客户</NavLink>
                 <NavLink to="/coupons" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>优惠券</NavLink>
                 <NavLink to="/refunds" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>退款</NavLink>
                 <NavLink to="/inventory" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>库存</NavLink>
@@ -116,6 +121,10 @@ function AppRoutes() {
                   <Route path="/orders" element={<OrderList />} />
                   <Route path="/orders/create" element={<OrderCreate />} />
                   <Route path="/orders/:id" element={<OrderShow />} />
+                  <Route path="/customers" element={<CustomerList />} />
+                  <Route path="/customers/create" element={<CustomerCreate />} />
+                  <Route path="/customers/:id/edit" element={<CustomerEdit />} />
+                  <Route path="/customers/:id" element={<CustomerShow />} />
                   <Route path="/coupons" element={<CouponList />} />
                   <Route path="/coupons/create" element={<CouponCreate />} />
                   <Route path="/coupons/:id/edit" element={<CouponEdit />} />

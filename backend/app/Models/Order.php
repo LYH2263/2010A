@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
@@ -17,7 +18,7 @@ class Order extends Model
     const REFUND_PARTIAL = 'partial';
     const REFUND_FULL = 'full';
 
-    protected $fillable = ['order_no', 'status', 'original_amount', 'total_amount', 'discount_amount', 'remark'];
+    protected $fillable = ['order_no', 'status', 'original_amount', 'total_amount', 'discount_amount', 'remark', 'customer_id'];
 
     protected $appends = ['refund_status', 'total_refunded_amount'];
 
@@ -26,6 +27,11 @@ class Order extends Model
         'total_amount' => 'decimal:2',
         'discount_amount' => 'decimal:2',
     ];
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
 
     public function items(): HasMany
     {

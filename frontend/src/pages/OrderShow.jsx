@@ -157,6 +157,13 @@ export default function OrderShow() {
         </div>
         <dl className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><dt className="text-gray-500 text-sm">订单号</dt><dd className="font-medium text-gray-800 mt-0.5">{order.order_no}</dd></div>
+          <div><dt className="text-gray-500 text-sm">客户</dt><dd className="font-medium mt-0.5">
+            {order.customer ? (
+              <Link to={`/customers/${order.customer.id}`} className="text-primary hover:underline">{order.customer.name} <span className="text-gray-500 text-sm">({order.customer.phone})</span></Link>
+            ) : (
+              <span className="text-gray-400">未关联客户</span>
+            )}
+          </dd></div>
           {Number(order.discount_amount) > 0 ? (
             <>
               <div><dt className="text-gray-500 text-sm">优惠前金额</dt><dd className="font-medium text-gray-500 mt-0.5 line-through">¥{Number(order.original_amount || order.total_amount).toFixed(2)}</dd></div>

@@ -16,6 +16,7 @@ class OrderRequest extends FormRequest
         return [
             'remark' => ['nullable', 'string', 'max:255'],
             'coupon_code' => ['nullable', 'string', 'max:64'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.product_sku_id' => ['nullable', 'exists:product_skus,id'],
@@ -28,6 +29,7 @@ class OrderRequest extends FormRequest
         return [
             'remark' => '备注',
             'coupon_code' => '优惠券码',
+            'customer_id' => '客户',
             'items' => '订单项',
         ];
     }

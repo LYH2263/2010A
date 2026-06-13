@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Refund;
@@ -16,7 +17,8 @@ class RefundService
 {
     public function __construct(
         private InventoryService $inventoryService,
-        private CouponService $couponService
+        private CouponService $couponService,
+        private CustomerService $customerService
     ) {}
     public function list(int $perPage = 15, ?string $status = null, ?int $orderId = null): LengthAwarePaginator
     {
@@ -208,6 +210,13 @@ class RefundService
                 $refundRatio = bcdiv((string) $lockedRefund->refund_amount, $orderOriginalAmount, 4);
                 if (bccomp($refundRatio, '0', 4) > 0) {
                     $this->couponService->partialRelease($lockedRefund->order, $refundRatio);
+                }
+            }
+
+            if ($lockedRefund->order->customer_id) {
+                $customer = Customer::find($lockedRefund->order->customer_id);
+                if ($customer) {
+                    $this->customerService->subtractOrderStats($customer, (string) $lockedRefund->refund_amount);
                 }
             }
 

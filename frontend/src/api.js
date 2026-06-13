@@ -716,3 +716,100 @@ export async function stockInPurchaseOrder(id) {
   return r.json();
 }
 
+export async function getCustomers(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  const r = await fetch(BASE + '/customers' + (q ? '?' + q : ''), { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getCustomer(id, withOrders = false) {
+  const url = BASE + '/customers/' + id + (withOrders ? '?with_orders=1' : '');
+  const r = await fetch(url, { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function getCustomerCreateMeta() {
+  const r = await fetch(BASE + '/customers/create', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getCustomerEditMeta(id) {
+  const r = await fetch(BASE + '/customers/' + id + '/edit', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function createCustomer(data) {
+  const r = await fetch(BASE + '/customers', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function updateCustomer(id, data) {
+  const r = await fetch(BASE + '/customers/' + id, {
+    method: 'PUT',
+    headers: { ...headers(), 'X-HTTP-Method-Override': 'PUT' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function deleteCustomer(id) {
+  const r = await fetch(BASE + '/customers/' + id, {
+    method: 'DELETE',
+    headers: { ...headers(), 'X-HTTP-Method-Override': 'DELETE' },
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const text = await r.text();
+    let msg = text;
+    try {
+      const j = JSON.parse(text);
+      if (j && j.message) msg = j.message;
+    } catch (_) {}
+    throw new Error(msg);
+  }
+}
+
+export async function searchCustomers(keyword = '') {
+  const q = new URLSearchParams({ keyword }).toString();
+  const r = await fetch(BASE + '/customers/search' + (q ? '?' + q : ''), { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+

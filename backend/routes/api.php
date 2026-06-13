@@ -11,6 +11,7 @@ use App\Http\Controllers\RefundController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PurchaseOrderController;
 use Illuminate\Support\Facades\Route;
 
@@ -77,6 +78,15 @@ Route::get('suppliers/{id}', [SupplierController::class, 'show']);
 Route::get('suppliers/{id}/edit', [SupplierController::class, 'edit']);
 Route::put('suppliers/{id}', [SupplierController::class, 'update']);
 Route::delete('suppliers/{id}', [SupplierController::class, 'destroy']);
+
+Route::get('customers/search', [CustomerController::class, 'search']);
+Route::get('customers', [CustomerController::class, 'index']);
+Route::get('customers/create', [CustomerController::class, 'create']);
+Route::post('customers', [CustomerController::class, 'store']);
+Route::get('customers/{id}', [CustomerController::class, 'show']);
+Route::get('customers/{id}/edit', [CustomerController::class, 'edit']);
+Route::put('customers/{id}', [CustomerController::class, 'update']);
+Route::delete('customers/{id}', [CustomerController::class, 'destroy']);
 
 Route::get('purchase-orders', [PurchaseOrderController::class, 'index']);
 Route::get('purchase-orders/create', [PurchaseOrderController::class, 'create']);

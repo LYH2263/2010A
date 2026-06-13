@@ -61,7 +61,7 @@ class OrderController extends Controller
         try {
             $order = $this->orderService->create($request->validated());
             if ($request->expectsJson()) {
-                return response()->json($order->load('items'), 201);
+                return response()->json($order->load('items', 'customer'), 201);
             }
             return redirect()->route('orders.show', $order)->with('success', '订单已创建');
         } catch (\Throwable $e) {
@@ -94,7 +94,7 @@ class OrderController extends Controller
         try {
             $this->orderService->updateStatus($order, $request->input('status'));
             if ($request->expectsJson()) {
-                return response()->json($order->fresh()->load('items'));
+                return response()->json($order->fresh()->load('items', 'customer'));
             }
             return redirect()->route('orders.show', $order)->with('success', '状态已更新');
         } catch (\Throwable $e) {

@@ -157,10 +157,11 @@ export default function OrderList() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] divide-y divide-gray-200">
+              <table className="w-full min-w-[720px] divide-y divide-gray-200">
                 <thead className="bg-primary-light">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">订单号</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">客户</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">状态</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">金额</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">创建时间</th>
@@ -174,6 +175,13 @@ export default function OrderList() {
                     return (
                     <tr key={o.id} className="hover:bg-orange-50">
                       <td className="px-4 py-3 text-sm font-medium">{o.order_no}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {o.customer ? (
+                          <Link to={`/customers/${o.customer.id}`} className="text-primary hover:underline">{o.customer.name}</Link>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-1">
                           <span className={`px-2 py-0.5 rounded text-xs ${statusClass[o.status] || 'bg-gray-100'}`}>{statusMap[o.status] || o.status}</span>
