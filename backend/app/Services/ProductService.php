@@ -11,12 +11,15 @@ use Illuminate\Support\Facades\DB;
 
 class ProductService
 {
+    public function __construct(
+        private ProductImageService $imageService
+    ) {}
     /**
      * @param array{filters?: array{keyword?: string}} $options
      */
     public function list(?int $categoryId = null, int $perPage = 15, array $options = []): LengthAwarePaginator
     {
-        $q = Product::with(['category', 'skus.specValues.spec'])->orderBy('id', 'desc');
+        $q = Product::with(['category', 'skus.specValues.spec', 'mainImage'])->orderBy('id', 'desc');
         if ($categoryId !== null) {
             $q->where('category_id', $categoryId);
         }
@@ -44,12 +47,13 @@ class ProductService
      *   stock?: int,
      *   status?: int,
      *   specs?: array<int, array{name: string, values: array<int, string>}>,
-     *   skus?: array<int, array{sku: string, price: string|float, stock: int, spec_values?: array<int, int>}>
+     *   skus?: array<int, array{sku: string, price: string|float, stock: int, spec_values?: array<int, int>}>,
+     *   images?: array<int, array{id: int, is_main?: bool}>,
      * } $data
      */
-    public function create(array $data): Product
+    public function create(array $data, string $sessionId = ''): Product
     {
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(function () use ($data, $sessionId) {
             $hasSpecs = !empty($data['specs']) && !empty($data['skus']);
 
             $product = Product::create([
@@ -74,7 +78,12 @@ class ProductService
                 ]);
             }
 
-            return $product->load(['skus.specValues.spec', 'specs.values']);
+            if (!empty($data['images']) && $sessionId) {
+                $this->imageService->syncImages($product->id, $data['images'], $sessionId);
+                $this->imageService->ensureMainImageUnique($product->id);
+            }
+
+            return $product->load(['skus.specValues.spec', 'specs.values', 'images']);
         });
     }
 
@@ -88,12 +97,13 @@ class ProductService
      *   stock?: int,
      *   status?: int,
      *   specs?: array<int, array{name: string, values: array<int, string>}>,
-     *   skus?: array<int, array{id?: int, sku: string, price: string|float, stock: int, spec_values?: array<int, int>}>
+     *   skus?: array<int, array{id?: int, sku: string, price: string|float, stock: int, spec_values?: array<int, int>}>,
+     *   images?: array<int, array{id: int, is_main?: bool}>,
      * } $data
      */
-    public function update(Product $product, array $data): Product
+    public function update(Product $product, array $data, string $sessionId = ''): Product
     {
-        return DB::transaction(function () use ($product, $data) {
+        return DB::transaction(function () use ($product, $data, $sessionId) {
             $hasSpecs = isset($data['specs']) && isset($data['skus']);
 
             $product->update([
@@ -129,7 +139,12 @@ class ProductService
                 }
             }
 
-            return $product->fresh()->load(['skus.specValues.spec', 'specs.values']);
+            if (isset($data['images']) && $sessionId) {
+                $this->imageService->syncImages($product->id, $data['images'], $sessionId);
+                $this->imageService->ensureMainImageUnique($product->id);
+            }
+
+            return $product->fresh()->load(['skus.specValues.spec', 'specs.values', 'images']);
         });
     }
 
@@ -194,17 +209,23 @@ class ProductService
 
     public function delete(Product $product): void
     {
-        $product->delete();
+        DB::transaction(function () use ($product) {
+            foreach ($product->images as $image) {
+                $image->deleteFile();
+            }
+            $product->images()->delete();
+            $product->delete();
+        });
     }
 
     public function find(int $id): ?Product
     {
-        return Product::with(['category', 'skus.specValues.spec', 'specs.values'])->find($id);
+        return Product::with(['category', 'skus.specValues.spec', 'specs.values', 'images'])->find($id);
     }
 
     public function onSaleProducts(): \Illuminate\Database\Eloquent\Collection
     {
-        return Product::onSale()->with(['skus.specValues.spec', 'specs.values'])->orderBy('id')->get();
+        return Product::onSale()->with(['skus.specValues.spec', 'specs.values', 'mainImage'])->orderBy('id')->get();
     }
 
     public function findSku(int $skuId): ?ProductSku

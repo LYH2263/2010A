@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { createProduct } from '../api'
 import { getCategoriesAll } from '../api'
 import { useToast } from '../contexts/ToastContext'
+import ProductImageUploader from '../components/ProductImageUploader'
 
 function generateSkuMatrix(specs) {
   if (specs.length === 0 || specs.every(s => !s.values || s.values.length === 0)) {
@@ -44,6 +45,7 @@ export default function ProductCreate() {
   const [hasSpecs, setHasSpecs] = useState(false)
   const [specs, setSpecs] = useState([])
   const [skus, setSkus] = useState([])
+  const [images, setImages] = useState([])
 
   useEffect(() => {
     getCategoriesAll().then(setCategories).catch(() => setCategories([]))
@@ -136,6 +138,7 @@ export default function ProductCreate() {
           stock: Number(s.stock) || 0,
           spec_values: s.spec_values,
         })),
+        images: images.map(img => ({ id: img.id, is_main: !!img.is_main })),
       }
       createProduct(payload)
         .then(() => { showToast('商品已创建', 'success'); navigate('/products') })
@@ -149,6 +152,7 @@ export default function ProductCreate() {
         stock: form.stock ?? 0,
         status: Number(form.status),
         description: form.description || null,
+        images: images.map(img => ({ id: img.id, is_main: !!img.is_main })),
       }
       createProduct(payload)
         .then(() => { showToast('商品已创建', 'success'); navigate('/products') })
@@ -189,6 +193,11 @@ export default function ProductCreate() {
             <label className="block text-base font-semibold text-gray-800 mb-1.5">描述</label>
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="选填，商品描述" rows={3} className="mt-0 block w-full rounded-lg border-2 border-gray-300 px-3 py-2.5 text-base text-gray-800 placeholder-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none" />
           </div>
+
+          <div>
+            <ProductImageUploader value={images} onChange={setImages} />
+          </div>
+
           <div>
             <label className="block text-base font-semibold text-gray-800 mb-1.5">状态</label>
             <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="mt-0 block w-full rounded-lg border-2 border-gray-300 px-3 py-2.5 text-base text-gray-800 bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none">

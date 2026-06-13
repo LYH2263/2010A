@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\InventoryController;
@@ -57,4 +58,8 @@ Route::get('coupons/{id}/edit', [CouponController::class, 'edit']);
 Route::put('coupons/{id}', [CouponController::class, 'update']);
 Route::post('coupons/{id}/toggle', [CouponController::class, 'toggleStatus']);
 Route::post('coupons/validate', [CouponController::class, 'validateCoupon']);
+
+Route::get('product-images/config', [ProductImageController::class, 'config']);
+Route::post('product-images/upload', [ProductImageController::class, 'upload']);
+Route::delete('product-images/{id}', [ProductImageController::class, 'destroy']);
 });

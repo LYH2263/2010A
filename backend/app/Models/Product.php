@@ -22,7 +22,7 @@ class Product extends Model
         'status' => 'integer',
     ];
 
-    protected $appends = ['min_price', 'max_price', 'total_stock', 'has_multi_sku'];
+    protected $appends = ['min_price', 'max_price', 'total_stock', 'has_multi_sku', 'main_image_url', 'main_image_thumbnail'];
 
     public function category(): BelongsTo
     {
@@ -52,6 +52,43 @@ class Product extends Model
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class)->orderBy('id', 'desc');
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class)->orderBy('sort')->orderBy('id');
+    }
+
+    public function mainImage(): HasOne
+    {
+        return $this->hasOne(ProductImage::class)->where('is_main', true);
+    }
+
+    public function getMainImageUrlAttribute(): ?string
+    {
+        if ($this->relationLoaded('images')) {
+            $main = $this->images->firstWhere('is_main', true) ?? $this->images->first();
+            return $main?->absolute_url ?? $main?->url;
+        }
+        if ($this->relationLoaded('mainImage')) {
+            return $this->mainImage?->absolute_url ?? $this->mainImage?->url;
+        }
+        $img = $this->images()->where('is_main', true)->first() ?? $this->images()->first();
+        return $img?->absolute_url ?? $img?->url;
+    }
+
+    public function getMainImageThumbnailAttribute(): ?string
+    {
+        return $this->main_image_url;
+    }
+
+    protected static function booted(): void
+    {
+        static::deleting(function (Product $product) {
+            foreach ($product->images as $image) {
+                $image->deleteFile();
+            }
+        });
     }
 
     public function scopeOnSale($query)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { getProductsOnSale, createOrder, validateCoupon } from '../api'
+import { getProductsOnSale, createOrder, validateCoupon, resolveImageUrl } from '../api'
 import { useToast } from '../contexts/ToastContext'
 
 function getSpecText(sku) {
@@ -180,9 +180,25 @@ export default function OrderCreate() {
                 const hasMultiSku = p.skus && p.skus.length > 1
                 return (
                   <div key={p.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex flex-wrap items-center gap-3 mb-2">
-                      <span className="flex-1 min-w-0 text-base font-medium text-gray-800">{p.name}</span>
-                      <span className="text-gray-500 text-sm">商品编码：{p.sku}</span>
+                    <div className="flex flex-wrap items-start gap-3 mb-2">
+                      <div className="shrink-0">
+                        {p.main_image_url || p.main_image_thumbnail ? (
+                          <img
+                            src={resolveImageUrl(p.main_image_url || p.main_image_thumbnail)}
+                            alt={p.name}
+                            className="w-14 h-14 object-cover rounded border border-gray-200 bg-white"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-[10px]">
+                            无图
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 pt-1">
+                        <div className="text-base font-medium text-gray-800">{p.name}</div>
+                        <div className="text-gray-500 text-xs mt-0.5">商品编码：{p.sku}</div>
+                      </div>
                     </div>
 
                     {hasMultiSku ? (

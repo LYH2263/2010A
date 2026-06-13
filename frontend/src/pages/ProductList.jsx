@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { getProducts, getCategoriesAll, deleteProduct } from '../api'
+import { getProducts, getCategoriesAll, deleteProduct, resolveImageUrl } from '../api'
 import Pagination from '../components/Pagination'
 import { useToast } from '../contexts/ToastContext'
 import { useConfirmDialog } from '../contexts/ConfirmDialogContext'
@@ -118,6 +118,7 @@ export default function ProductList() {
               <table className="w-full min-w-[880px] divide-y divide-gray-200">
                 <thead className="bg-primary-light">
                   <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 w-16">图片</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">ID</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">名称</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">商品编码</th>
@@ -138,6 +139,20 @@ export default function ProductList() {
 
                     return (
                       <tr key={p.id} className="hover:bg-orange-50">
+                        <td className="px-4 py-3">
+                          {p.main_image_url || p.main_image_thumbnail ? (
+                            <img
+                              src={resolveImageUrl(p.main_image_url || p.main_image_thumbnail)}
+                              alt={p.name}
+                              className="w-12 h-12 object-cover rounded border border-gray-200 bg-white"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-xs">
+                              无图
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-500">{p.id}</td>
                         <td className="px-4 py-3 text-sm font-medium">
                           <div>{p.name}</div>

@@ -9,6 +9,7 @@ class Kernel extends ConsoleKernel
 {
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command('product-images:cleanup-orphans --hours=24')->daily();
     }
 
     protected function commands(): void

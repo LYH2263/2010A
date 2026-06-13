@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation, Link } from 'react-router-dom'
 import { getProduct, updateProduct } from '../api'
 import { getCategoriesAll } from '../api'
 import { useToast } from '../contexts/ToastContext'
+import ProductImageUploader from '../components/ProductImageUploader'
 
 function generateSkuMatrix(specs) {
   if (specs.length === 0 || specs.every(s => !s.values || s.values.length === 0)) {
@@ -50,6 +51,7 @@ export default function ProductEdit() {
   const [hasSpecs, setHasSpecs] = useState(false)
   const [specs, setSpecs] = useState([])
   const [skus, setSkus] = useState([])
+  const [images, setImages] = useState([])
 
   const load = () => Promise.all([getProduct(id), getCategoriesAll()])
     .then(([p, cats]) => {
@@ -95,6 +97,14 @@ export default function ProductEdit() {
         status: p.status,
         description: p.description || '',
       })
+
+      if (Array.isArray(p.images)) {
+        setImages(p.images.map(img => ({
+          id: img.id,
+          url: img.absolute_url || img.url,
+          is_main: !!img.is_main,
+        })))
+      }
     })
     .catch((e) => { setErr(e.message); showToast(e.message) })
 
@@ -195,6 +205,7 @@ export default function ProductEdit() {
           stock: Number(s.stock) || 0,
           spec_values: s.spec_values,
         })),
+        images: images.map(img => ({ id: img.id, is_main: !!img.is_main })),
       }
       updateProduct(id, payload)
         .then(() => { showToast('商品已保存', 'success'); backTo() })
@@ -208,6 +219,7 @@ export default function ProductEdit() {
         stock: form.stock,
         status: Number(form.status),
         description: form.description || null,
+        images: images.map(img => ({ id: img.id, is_main: !!img.is_main })),
       }
       updateProduct(id, payload)
         .then(() => { showToast('商品已保存', 'success'); backTo() })
@@ -251,6 +263,11 @@ export default function ProductEdit() {
             <label className="block text-base font-semibold text-gray-800 mb-1.5">描述</label>
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="选填，商品描述" rows={3} className="block w-full rounded-lg border-2 border-gray-300 bg-white px-3 py-2.5 text-base text-gray-800 placeholder-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none" />
           </div>
+
+          <div>
+            <ProductImageUploader value={images} onChange={setImages} />
+          </div>
+
           <div>
             <label className="block text-base font-semibold text-gray-800 mb-1.5">状态</label>
             <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="block w-full rounded-lg border-2 border-gray-300 bg-white px-3 py-2.5 text-base text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none">

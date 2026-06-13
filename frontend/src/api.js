@@ -423,3 +423,80 @@ export async function validateCoupon(code, items) {
   }
   return r.json();
 }
+
+export function resolveImageUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  return '/' + url.replace(/^\/+/, '');
+}
+
+export async function getProductImageConfig() {
+  const r = await fetch(BASE + '/product-images/config', {
+    headers: headers(),
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function uploadProductImage(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const apiBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL + '/api' : '/api';
+
+    xhr.open('POST', apiBase + '/product-images/upload', true);
+    xhr.withCredentials = true;
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        onProgress(percent);
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      try {
+        const data = xhr.status >= 200 && xhr.status < 300 ? JSON.parse(xhr.responseText) : null;
+        if (xhr.status >= 200 && xhr.status < 300 && data) {
+          resolve(data);
+        } else {
+          let msg = '上传失败';
+          try {
+            const err = JSON.parse(xhr.responseText);
+            if (err?.message) msg = err.message;
+          } catch (_) {}
+          reject(new Error(msg));
+        }
+      } catch (e) {
+        reject(new Error('上传响应解析失败'));
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('网络错误，上传失败')));
+    xhr.addEventListener('abort', () => reject(new Error('上传已取消')));
+
+    xhr.send(formData);
+  });
+}
+
+export async function deleteProductImage(id) {
+  const r = await fetch(BASE + '/product-images/' + id, {
+    method: 'DELETE',
+    headers: { ...headers(), 'X-HTTP-Method-Override': 'DELETE' },
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+}
+

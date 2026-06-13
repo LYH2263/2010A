@@ -31,6 +31,9 @@ class ProductRequest extends FormRequest
             'skus.*.price' => ['required_with:skus', 'numeric', 'min:0'],
             'skus.*.stock' => ['required_with:skus', 'integer', 'min:0'],
             'skus.*.spec_values' => ['nullable', 'array'],
+            'images' => ['nullable', 'array', 'max:20'],
+            'images.*.id' => ['required_with:images', 'integer', 'exists:product_images,id'],
+            'images.*.is_main' => ['nullable', 'boolean'],
         ];
     }
 

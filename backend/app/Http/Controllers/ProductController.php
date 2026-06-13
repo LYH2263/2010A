@@ -42,7 +42,7 @@ class ProductController extends Controller
     public function store(ProductRequest $request): JsonResponse|\Illuminate\Http\RedirectResponse
     {
         try {
-            $product = $this->productService->create($request->validated());
+            $product = $this->productService->create($request->validated(), $request->session()->getId());
             if ($request->expectsJson()) {
                 return response()->json($product->load('category'), 201);
             }
@@ -102,7 +102,7 @@ class ProductController extends Controller
             abort(404);
         }
         try {
-            $this->productService->update($product, $request->validated());
+            $this->productService->update($product, $request->validated(), $request->session()->getId());
             if ($request->expectsJson()) {
                 return response()->json($product->fresh()->load('category'));
             }
