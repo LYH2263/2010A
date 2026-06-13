@@ -15,7 +15,8 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class RefundService
 {
     public function __construct(
-        private InventoryService $inventoryService
+        private InventoryService $inventoryService,
+        private CouponService $couponService
     ) {}
     public function list(int $perPage = 15, ?string $status = null, ?int $orderId = null): LengthAwarePaginator
     {
@@ -201,6 +202,14 @@ class RefundService
             ]);
 
             $lockedRefund->update(['status' => Refund::STATUS_COMPLETED]);
+
+            $orderOriginalAmount = (string) $lockedRefund->order->original_amount;
+            if (bccomp($orderOriginalAmount, '0.00', 2) > 0) {
+                $refundRatio = bcdiv((string) $lockedRefund->refund_amount, $orderOriginalAmount, 4);
+                if (bccomp($refundRatio, '0', 4) > 0) {
+                    $this->couponService->partialRelease($lockedRefund->order, $refundRatio);
+                }
+            }
 
             return $lockedRefund->fresh()->load('items', 'order');
         });

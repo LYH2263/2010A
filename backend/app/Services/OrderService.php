@@ -7,13 +7,17 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductSku;
 use App\Models\StockMovement;
+use App\Models\Coupon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class OrderService
 {
+    const SCALE = 2;
+
     public function __construct(
-        private InventoryService $inventoryService
+        private InventoryService $inventoryService,
+        private CouponService $couponService
     ) {}
 
     /**
@@ -21,7 +25,7 @@ class OrderService
      */
     public function list(int $perPage = 15, ?string $status = null, array $options = []): LengthAwarePaginator
     {
-        $q = Order::with(['items', 'items.product', 'items.sku', 'refunds', 'refunds.items'])->orderBy('id', 'desc');
+        $q = Order::with(['items', 'items.product', 'items.sku', 'refunds', 'refunds.items', 'coupons'])->orderBy('id', 'desc');
         if ($status !== null && $status !== '') {
             $q->where('status', $status);
         }
@@ -45,7 +49,8 @@ class OrderService
     /**
      * @param array{
      *   items: array<int, array{product_id: int, product_sku_id?: int, quantity: int}>,
-     *   remark?: string
+     *   remark?: string,
+     *   coupon_code?: string
      * } $data
      */
     public function create(array $data): Order
@@ -55,11 +60,14 @@ class OrderService
             throw new \InvalidArgumentException('订单至少需要一件商品');
         }
 
-        return DB::transaction(function () use ($items, $data) {
+        $couponCode = isset($data['coupon_code']) ? trim($data['coupon_code']) : null;
+
+        return DB::transaction(function () use ($items, $data, $couponCode) {
             $orderNo = 'ORD' . date('YmdHis') . str_pad((string) random_int(1, 99), 2, '0', STR_PAD_LEFT);
-            $total = 0;
+            $originalTotal = '0.00';
             $orderItems = [];
             $stockChanges = [];
+            $orderItemContexts = [];
 
             foreach ($items as $row) {
                 $product = Product::find($row['product_id']);
@@ -82,8 +90,8 @@ class OrderService
                     throw new \InvalidArgumentException("商品【{$product->name}{$specText}】库存不足，当前：{$sku->stock}");
                 }
 
-                $subtotal = bcmul((string) $sku->price, (string) $qty, 2);
-                $total = bcadd((string) $total, $subtotal, 2);
+                $subtotal = bcmul((string) $sku->price, (string) $qty, self::SCALE);
+                $originalTotal = bcadd($originalTotal, $subtotal, self::SCALE);
 
                 $skuSpecs = [];
                 foreach ($sku->specValues as $sv) {
@@ -101,21 +109,68 @@ class OrderService
                     'subtotal' => $subtotal,
                 ];
                 $stockChanges[] = ['sku' => $sku, 'product' => $product, 'qty' => $qty];
+                $orderItemContexts[] = ['product' => $product, 'row' => $row, 'subtotal' => $subtotal];
             }
 
             if (empty($orderItems)) {
                 throw new \InvalidArgumentException('订单至少需要一件有效商品');
             }
 
+            $discountAmount = '0.00';
+            $redeemedCoupon = null;
+
+            if ($couponCode !== null && $couponCode !== '') {
+                $validationItems = [];
+                foreach ($items as $row) {
+                    $validationItems[] = [
+                        'product_id' => $row['product_id'],
+                        'product_sku_id' => $row['product_sku_id'] ?? null,
+                        'quantity' => $row['quantity'],
+                    ];
+                }
+
+                $validateResult = $this->couponService->validate($couponCode, $validationItems);
+                if (!$validateResult['valid']) {
+                    throw new \InvalidArgumentException($validateResult['message']);
+                }
+
+                $coupon = Coupon::where('id', $validateResult['coupon']['id'])
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$coupon) {
+                    throw new \InvalidArgumentException('优惠券不存在');
+                }
+
+                $revalidate = $this->couponService->validateCoupon($coupon, $validationItems);
+                if (!$revalidate['valid']) {
+                    throw new \InvalidArgumentException($revalidate['message']);
+                }
+
+                $discountAmount = $revalidate['discount_amount'];
+                $redeemedCoupon = $coupon;
+            }
+
+            $payableAmount = bcsub($originalTotal, $discountAmount, self::SCALE);
+            if (bccomp($payableAmount, '0.00', self::SCALE) < 0) {
+                $payableAmount = '0.00';
+            }
+
             $order = Order::create([
                 'order_no' => $orderNo,
                 'status' => Order::STATUS_PENDING,
-                'total_amount' => $total,
+                'original_amount' => $originalTotal,
+                'total_amount' => $payableAmount,
+                'discount_amount' => $discountAmount,
                 'remark' => $data['remark'] ?? null,
             ]);
 
             foreach ($orderItems as $item) {
                 $order->items()->create($item);
+            }
+
+            if ($redeemedCoupon !== null) {
+                $this->couponService->redeem($redeemedCoupon, $order, $discountAmount);
             }
 
             foreach ($stockChanges as $sc) {
@@ -131,7 +186,7 @@ class OrderService
                 );
             }
 
-            return $order->load(['items.product', 'items.sku']);
+            return $order->load(['items.product', 'items.sku', 'coupons']);
         });
     }
 
@@ -202,6 +257,8 @@ class OrderService
                         }
                     }
                 }
+
+                $this->couponService->releaseByOrder($order);
             });
         }
         $order->update(['status' => $status]);
@@ -210,7 +267,7 @@ class OrderService
 
     public function find(int $id): ?Order
     {
-        $order = Order::with(['items.product', 'items.sku', 'refunds', 'refunds.items'])->find($id);
+        $order = Order::with(['items.product', 'items.sku', 'refunds', 'refunds.items', 'coupons'])->find($id);
         if ($order) {
             $order->setAppends(['refund_status', 'total_refunded_amount']);
         }

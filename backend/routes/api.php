@@ -7,6 +7,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\RefundController;
+use App\Http\Controllers\CouponController;
 use Illuminate\Support\Facades\Route;
 
 // 公开路由（无需认证）
@@ -48,4 +49,12 @@ Route::get('inventory', [InventoryController::class, 'index']);
 Route::get('inventory/movements', [InventoryController::class, 'movements']);
 Route::get('inventory/{product}/adjust', [InventoryController::class, 'adjust']);
 Route::post('inventory/{product}/adjust', [InventoryController::class, 'doAdjust']);
+
+Route::get('coupons', [CouponController::class, 'index']);
+Route::get('coupons/create', [CouponController::class, 'create']);
+Route::post('coupons', [CouponController::class, 'store']);
+Route::get('coupons/{id}/edit', [CouponController::class, 'edit']);
+Route::put('coupons/{id}', [CouponController::class, 'update']);
+Route::post('coupons/{id}/toggle', [CouponController::class, 'toggleStatus']);
+Route::post('coupons/validate', [CouponController::class, 'validateCoupon']);
 });

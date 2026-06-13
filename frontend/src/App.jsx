@@ -15,6 +15,9 @@ import CategoryEdit from './pages/CategoryEdit'
 import OrderList from './pages/OrderList'
 import OrderCreate from './pages/OrderCreate'
 import OrderShow from './pages/OrderShow'
+import CouponList from './pages/CouponList'
+import CouponCreate from './pages/CouponCreate'
+import CouponEdit from './pages/CouponEdit'
 import RefundList from './pages/RefundList'
 import RefundShow from './pages/RefundShow'
 import InventoryList from './pages/InventoryList'
@@ -42,6 +45,7 @@ function Layout({ children }) {
                 <NavLink to="/products" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>商品</NavLink>
                 <NavLink to="/categories" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>分类</NavLink>
                 <NavLink to="/orders" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>订单</NavLink>
+                <NavLink to="/coupons" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>优惠券</NavLink>
                 <NavLink to="/refunds" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>退款</NavLink>
                 <NavLink to="/inventory" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>库存</NavLink>
                 <NavLink to="/inventory/movements" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>库存流水</NavLink>
@@ -95,6 +99,9 @@ function AppRoutes() {
                   <Route path="/orders" element={<OrderList />} />
                   <Route path="/orders/create" element={<OrderCreate />} />
                   <Route path="/orders/:id" element={<OrderShow />} />
+                  <Route path="/coupons" element={<CouponList />} />
+                  <Route path="/coupons/create" element={<CouponCreate />} />
+                  <Route path="/coupons/:id/edit" element={<CouponEdit />} />
                   <Route path="/refunds" element={<RefundList />} />
                   <Route path="/refunds/:id" element={<RefundShow />} />
                   <Route path="/inventory" element={<InventoryList />} />

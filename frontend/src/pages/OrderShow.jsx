@@ -157,7 +157,15 @@ export default function OrderShow() {
         </div>
         <dl className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><dt className="text-gray-500 text-sm">订单号</dt><dd className="font-medium text-gray-800 mt-0.5">{order.order_no}</dd></div>
-          <div><dt className="text-gray-500 text-sm">订单金额</dt><dd className="text-primary font-bold text-lg mt-0.5">¥{Number(order.total_amount).toFixed(2)}</dd></div>
+          {Number(order.discount_amount) > 0 ? (
+            <>
+              <div><dt className="text-gray-500 text-sm">优惠前金额</dt><dd className="font-medium text-gray-500 mt-0.5 line-through">¥{Number(order.original_amount || order.total_amount).toFixed(2)}</dd></div>
+              <div><dt className="text-gray-500 text-sm">优惠金额</dt><dd className="text-green-600 font-bold text-lg mt-0.5">-¥{Number(order.discount_amount).toFixed(2)}</dd></div>
+              <div><dt className="text-gray-500 text-sm">实付金额</dt><dd className="text-primary font-bold text-lg mt-0.5">¥{Number(order.total_amount).toFixed(2)}</dd></div>
+            </>
+          ) : (
+            <div><dt className="text-gray-500 text-sm">订单金额</dt><dd className="text-primary font-bold text-lg mt-0.5">¥{Number(order.total_amount).toFixed(2)}</dd></div>
+          )}
           {Number(order.total_refunded_amount) > 0 && (
             <div><dt className="text-gray-500 text-sm">已退金额</dt><dd className="text-red-600 font-bold text-lg mt-0.5">-¥{Number(order.total_refunded_amount).toFixed(2)}</dd></div>
           )}
@@ -165,6 +173,42 @@ export default function OrderShow() {
           {order.remark && <div className="sm:col-span-2"><dt className="text-gray-500 text-sm">备注</dt><dd className="mt-0.5 text-gray-700">{order.remark}</dd></div>}
         </dl>
       </div>
+
+      {order.coupons && order.coupons.length > 0 && (
+        <div className="bg-white rounded-xl shadow overflow-hidden border border-gray-100">
+          <h2 className="px-4 py-3 bg-primary-light border-b border-orange-100 font-semibold text-gray-800">优惠券（{order.coupons.length} 张）</h2>
+          <div className="p-4 space-y-2">
+            {order.coupons.map((oc) => {
+              const typeText = oc.coupon_type === 'fixed'
+                ? `满减 ¥${Number(oc.coupon_value).toFixed(2)}`
+                : `${Number(oc.coupon_value)}折`
+              const statusText = { used: '已使用', released: '已释放', partial_released: '部分释放' }[oc.status] || oc.status
+              const statusClass = { used: 'bg-green-100 text-green-800', released: 'bg-gray-100 text-gray-600', partial_released: 'bg-orange-100 text-orange-800' }[oc.status] || 'bg-gray-100'
+              return (
+                <div key={oc.id} className="flex flex-wrap items-center justify-between gap-3 border border-gray-200 rounded-lg px-4 py-3 bg-gradient-to-r from-orange-50 to-white">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <code className="inline-block bg-white px-2 py-0.5 rounded text-sm font-mono border border-orange-200">{oc.coupon_code}</code>
+                      <span className="text-sm font-medium text-gray-800">{oc.coupon_name}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs ${statusClass}`}>{statusText}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">{typeText}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-green-700">-¥{Number(oc.discount_amount).toFixed(2)}</div>
+                    {oc.status === 'partial_released' && Number(oc.released_amount) > 0 && (
+                      <div className="text-xs text-orange-600 mt-0.5">已释放 ¥{Number(oc.released_amount).toFixed(2)}</div>
+                    )}
+                    {oc.status === 'released' && (
+                      <div className="text-xs text-gray-500 mt-0.5">已全额释放</div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow overflow-hidden border border-gray-100">
         <h2 className="px-4 py-3 bg-primary-light border-b border-orange-100 font-semibold text-gray-800">订单明细（{items.length} 项）</h2>

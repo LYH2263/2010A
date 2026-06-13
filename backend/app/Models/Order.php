@@ -17,12 +17,14 @@ class Order extends Model
     const REFUND_PARTIAL = 'partial';
     const REFUND_FULL = 'full';
 
-    protected $fillable = ['order_no', 'status', 'total_amount', 'remark'];
+    protected $fillable = ['order_no', 'status', 'original_amount', 'total_amount', 'discount_amount', 'remark'];
 
     protected $appends = ['refund_status', 'total_refunded_amount'];
 
     protected $casts = [
+        'original_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
     ];
 
     public function items(): HasMany
@@ -33,6 +35,11 @@ class Order extends Model
     public function refunds(): HasMany
     {
         return $this->hasMany(Refund::class);
+    }
+
+    public function coupons(): HasMany
+    {
+        return $this->hasMany(OrderCoupon::class);
     }
 
     public function getRefundStatusAttribute(): string

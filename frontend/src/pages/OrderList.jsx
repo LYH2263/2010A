@@ -170,6 +170,7 @@ export default function OrderList() {
                 <tbody className="divide-y divide-gray-200">
                   {list.map((o) => {
                     const netAmount = Number(o.total_amount) - Number(o.total_refunded_amount || 0)
+                    const hasCoupon = o.coupons && o.coupons.length > 0
                     return (
                     <tr key={o.id} className="hover:bg-orange-50">
                       <td className="px-4 py-3 text-sm font-medium">{o.order_no}</td>
@@ -182,7 +183,21 @@ export default function OrderList() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        <div className="text-primary font-medium">¥{Number(o.total_amount).toFixed(2)}</div>
+                        {Number(o.discount_amount) > 0 ? (
+                          <>
+                            <div className="text-primary font-medium">¥{Number(o.total_amount).toFixed(2)}</div>
+                            <div className="text-gray-400 text-xs mt-0.5">
+                              原价 ¥{Number(o.original_amount || o.total_amount).toFixed(2)} · 优惠 <span className="text-green-600">-¥{Number(o.discount_amount).toFixed(2)}</span>
+                            </div>
+                            {hasCoupon && (
+                              <div className="text-xs text-orange-600 mt-0.5 truncate">
+                                券：{o.coupons.map(c => c.coupon_code).join('、')}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-primary font-medium">¥{Number(o.total_amount).toFixed(2)}</div>
+                        )}
                         {Number(o.total_refunded_amount) > 0 && (
                           <div className="text-red-600 text-xs mt-0.5">已退 ¥{Number(o.total_refunded_amount).toFixed(2)} · 实收 ¥{netAmount.toFixed(2)}</div>
                         )}

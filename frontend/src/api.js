@@ -336,3 +336,90 @@ export async function rejectRefund(refundId, auditRemark) {
   }
   return r.json();
 }
+
+export async function getCoupons(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  const r = await fetch(BASE + '/coupons' + (q ? '?' + q : ''), { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getCouponCreateMeta() {
+  const r = await fetch(BASE + '/coupons/create', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getCouponEditMeta(id) {
+  const r = await fetch(BASE + '/coupons/' + id + '/edit', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function createCoupon(data) {
+  const r = await fetch(BASE + '/coupons', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function updateCoupon(id, data) {
+  const r = await fetch(BASE + '/coupons/' + id, {
+    method: 'PUT',
+    headers: { ...headers(), 'X-HTTP-Method-Override': 'PUT' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function toggleCouponStatus(id) {
+  const r = await fetch(BASE + '/coupons/' + id + '/toggle', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function validateCoupon(code, items) {
+  const r = await fetch(BASE + '/coupons/validate', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+    body: JSON.stringify({ code, items }),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
