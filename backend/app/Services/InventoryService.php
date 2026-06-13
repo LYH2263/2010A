@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\StockMovement;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class InventoryService
 {
@@ -29,17 +31,98 @@ class InventoryService
         return $q->paginate($perPage);
     }
 
-    public function adjust(Product $product, int $delta, ?string $reason = ''): Product
+    /**
+     * 统一的库存变动方法，保证库存改动与流水写入在同一事务内
+     *
+     * @param Product $product
+     * @param int $delta 变化值（正数增加，负数扣减）
+     * @param string $sourceType 来源类型
+     * @param array{related_type?: string, related_id?: int, reason?: string, operator_id?: int} $context
+     * @return Product
+     * @throws \InvalidArgumentException
+     */
+    public function changeStock(Product $product, int $delta, string $sourceType, array $context = []): Product
     {
-        return DB::transaction(function () use ($product, $delta) {
+        if ($delta === 0) {
+            return $product;
+        }
+
+        return DB::transaction(function () use ($product, $delta, $sourceType, $context) {
             $p = Product::where('id', $product->id)->lockForUpdate()->first();
-            $newStock = $p->stock + $delta;
-            if ($newStock < 0) {
-                throw new \InvalidArgumentException("库存不足，当前：{$p->stock}，无法扣减 " . abs($delta));
+            if (!$p) {
+                throw new \InvalidArgumentException('商品不存在');
             }
-            $p->update(['stock' => $newStock]);
+
+            $beforeQty = $p->stock;
+            $afterQty = $beforeQty + $delta;
+
+            if ($afterQty < 0) {
+                throw new \InvalidArgumentException("库存不足，当前：{$beforeQty}，无法扣减 " . abs($delta));
+            }
+
+            $p->update(['stock' => $afterQty]);
+
+            $lastMovement = StockMovement::where('product_id', $p->id)
+                ->orderBy('id', 'desc')
+                ->lockForUpdate()
+                ->first();
+
+            if ($lastMovement && $lastMovement->after_quantity !== $beforeQty) {
+                throw new \RuntimeException("库存流水结存不一致，预期：{$lastMovement->after_quantity}，实际：{$beforeQty}");
+            }
+
+            StockMovement::create([
+                'product_id' => $p->id,
+                'source_type' => $sourceType,
+                'before_quantity' => $beforeQty,
+                'delta' => $delta,
+                'after_quantity' => $afterQty,
+                'related_type' => $context['related_type'] ?? null,
+                'related_id' => $context['related_id'] ?? null,
+                'operator_id' => $context['operator_id'] ?? (Auth::check() ? Auth::id() : null),
+                'reason' => $context['reason'] ?? null,
+            ]);
+
             return $p->fresh();
         });
+    }
+
+    public function adjust(Product $product, int $delta, ?string $reason = ''): Product
+    {
+        return $this->changeStock($product, $delta, StockMovement::SOURCE_MANUAL_ADJUST, [
+            'reason' => $reason,
+        ]);
+    }
+
+    /**
+     * @param array{filters?: array{product_id?: int, source_type?: string, date_from?: string, date_to?: string, keyword?: string}} $options
+     */
+    public function listMovements(int $perPage = 15, array $options = []): \Illuminate\Contracts\Pagination\LengthAwarePaginator
+    {
+        $q = StockMovement::with(['product', 'operator'])->orderBy('id', 'desc');
+        $filters = $options['filters'] ?? [];
+
+        if (!empty($filters['product_id']) && $filters['product_id'] !== '') {
+            $q->where('product_id', (int) $filters['product_id']);
+        }
+        if (!empty($filters['source_type']) && $filters['source_type'] !== '') {
+            $q->where('source_type', $filters['source_type']);
+        }
+        if (!empty($filters['date_from'])) {
+            $q->whereDate('created_at', '>=', $filters['date_from']);
+        }
+        if (!empty($filters['date_to'])) {
+            $q->whereDate('created_at', '<=', $filters['date_to']);
+        }
+        if (!empty($filters['keyword'])) {
+            $kw = trim($filters['keyword']);
+            $q->whereHas('product', function ($subQ) use ($kw) {
+                $subQ->where('name', 'like', '%' . $kw . '%')
+                    ->orWhere('sku', 'like', '%' . $kw . '%');
+            });
+        }
+
+        return $q->paginate($perPage);
     }
 
     public function stats(): array

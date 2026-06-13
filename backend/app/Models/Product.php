@@ -31,6 +31,11 @@ class Product extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class)->orderBy('id', 'desc');
+    }
+
     public function scopeOnSale($query)
     {
         return $query->where('status', self::STATUS_ACTIVE);

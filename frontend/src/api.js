@@ -251,6 +251,16 @@ export async function adjustInventory(productId, delta, reason = '') {
   return r.json();
 }
 
+export async function getStockMovements(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  const r = await fetch(BASE + '/inventory/movements' + (q ? '?' + q : ''), { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
 export async function getProductsOnSale() {
   const r = await fetch(BASE + '/products?per_page=100', { headers: headers(), credentials: 'include' });
   if (!r.ok) {

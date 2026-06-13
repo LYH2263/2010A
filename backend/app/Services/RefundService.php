@@ -7,11 +7,15 @@ use App\Models\OrderItem;
 use App\Models\Refund;
 use App\Models\RefundItem;
 use App\Models\Product;
+use App\Models\StockMovement;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class RefundService
 {
+    public function __construct(
+        private InventoryService $inventoryService
+    ) {}
     public function list(int $perPage = 15, ?string $status = null, ?int $orderId = null): LengthAwarePaginator
     {
         $q = Refund::with(['order', 'items'])->orderBy('id', 'desc');
@@ -157,7 +161,16 @@ class RefundService
 
                 $product = Product::where('id', $refundItem->product_id)->lockForUpdate()->first();
                 if ($product) {
-                    $product->increment('stock', $refundItem->quantity);
+                    $this->inventoryService->changeStock(
+                        $product,
+                        $refundItem->quantity,
+                        StockMovement::SOURCE_REFUND_RESTORE,
+                        [
+                            'related_type' => StockMovement::RELATED_TYPE_REFUND,
+                            'related_id' => $lockedRefund->id,
+                            'reason' => '退款审核通过回补库存',
+                        ]
+                    );
                 }
             }
 

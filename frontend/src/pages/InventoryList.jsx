@@ -167,7 +167,10 @@ export default function InventoryList() {
                       <td className="px-4 py-3 text-sm text-primary font-medium">¥{Number(p.price ?? 0).toFixed(2)}</td>
                       <td className={`px-4 py-3 text-sm font-medium ${p.stock <= 10 ? 'text-orange-600' : ''}`}>{p.stock}</td>
                       <td className="px-4 py-3">
-                        <Link to={'/inventory/' + p.id + '/adjust'} state={{ from: 'list' }} className="text-primary hover:underline">调整库存</Link>
+                        <div className="flex gap-3">
+                          <Link to={'/inventory/' + p.id + '/adjust'} state={{ from: 'list' }} className="text-primary hover:underline">调整库存</Link>
+                          <Link to={'/inventory/movements/' + p.id} className="text-primary hover:underline">查看流水</Link>
+                        </div>
                       </td>
                     </tr>
                   ))}

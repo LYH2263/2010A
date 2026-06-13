@@ -19,6 +19,7 @@ import RefundList from './pages/RefundList'
 import RefundShow from './pages/RefundShow'
 import InventoryList from './pages/InventoryList'
 import InventoryAdjust from './pages/InventoryAdjust'
+import StockMovementList from './pages/StockMovementList'
 
 function Layout({ children }) {
   const { user, logout } = useAuth()
@@ -43,6 +44,7 @@ function Layout({ children }) {
                 <NavLink to="/orders" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>订单</NavLink>
                 <NavLink to="/refunds" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>退款</NavLink>
                 <NavLink to="/inventory" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>库存</NavLink>
+                <NavLink to="/inventory/movements" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>库存流水</NavLink>
               </div>
             </div>
             {user && (
@@ -96,6 +98,8 @@ function AppRoutes() {
                   <Route path="/refunds" element={<RefundList />} />
                   <Route path="/refunds/:id" element={<RefundShow />} />
                   <Route path="/inventory" element={<InventoryList />} />
+                  <Route path="/inventory/movements" element={<StockMovementList />} />
+                  <Route path="/inventory/movements/:productId" element={<StockMovementList />} />
                   <Route path="/inventory/:productId/adjust" element={<InventoryAdjust />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

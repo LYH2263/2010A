@@ -5,11 +5,16 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\StockMovement;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class OrderService
 {
+    public function __construct(
+        private InventoryService $inventoryService
+    ) {}
+
     /**
      * @param array{filters?: array{order_no?: string, date_from?: string, date_to?: string}} $options
      */
@@ -47,6 +52,7 @@ class OrderService
             $orderNo = 'ORD' . date('YmdHis') . str_pad((string) random_int(1, 99), 2, '0', STR_PAD_LEFT);
             $total = 0;
             $orderItems = [];
+            $stockChanges = [];
 
             foreach ($items as $row) {
                 $product = Product::find($row['product_id']);
@@ -69,7 +75,7 @@ class OrderService
                     'quantity' => $qty,
                     'subtotal' => $subtotal,
                 ];
-                $product->decrement('stock', $qty);
+                $stockChanges[] = ['product' => $product, 'qty' => $qty];
             }
 
             if (empty($orderItems)) {
@@ -87,6 +93,19 @@ class OrderService
                 $order->items()->create($item);
             }
 
+            foreach ($stockChanges as $sc) {
+                $this->inventoryService->changeStock(
+                    $sc['product'],
+                    -$sc['qty'],
+                    StockMovement::SOURCE_ORDER_DEDUCT,
+                    [
+                        'related_type' => StockMovement::RELATED_TYPE_ORDER,
+                        'related_id' => $order->id,
+                        'reason' => '下单扣减库存',
+                    ]
+                );
+            }
+
             return $order->load('items');
         });
     }
@@ -101,17 +120,31 @@ class OrderService
             throw new \InvalidArgumentException('仅已发货的订单可标记为已完成');
         }
         if ($status === Order::STATUS_CANCELLED && $order->status !== Order::STATUS_CANCELLED) {
-            foreach ($order->items as $item) {
-                $hasRefunded = \App\Models\RefundItem::where('order_item_id', $item->id)
-                    ->whereHas('refund', function ($q) {
-                        $q->whereIn('status', [\App\Models\Refund::STATUS_APPROVED, \App\Models\Refund::STATUS_COMPLETED]);
-                    })
-                    ->sum('quantity');
-                $remaining = $item->quantity - (int) $hasRefunded;
-                if ($remaining > 0) {
-                    $item->product()->increment('stock', $remaining);
+            DB::transaction(function () use ($order) {
+                foreach ($order->items as $item) {
+                    $hasRefunded = \App\Models\RefundItem::where('order_item_id', $item->id)
+                        ->whereHas('refund', function ($q) {
+                            $q->whereIn('status', [\App\Models\Refund::STATUS_APPROVED, \App\Models\Refund::STATUS_COMPLETED]);
+                        })
+                        ->sum('quantity');
+                    $remaining = $item->quantity - (int) $hasRefunded;
+                    if ($remaining > 0) {
+                        $product = Product::find($item->product_id);
+                        if ($product) {
+                            $this->inventoryService->changeStock(
+                                $product,
+                                $remaining,
+                                StockMovement::SOURCE_ORDER_CANCEL,
+                                [
+                                    'related_type' => StockMovement::RELATED_TYPE_ORDER,
+                                    'related_id' => $order->id,
+                                    'reason' => '取消订单回补库存',
+                                ]
+                            );
+                        }
+                    }
                 }
-            }
+            });
         }
         $order->update(['status' => $status]);
         return $order;

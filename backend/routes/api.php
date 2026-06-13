@@ -45,6 +45,7 @@ Route::post('refunds/{refund}/approve', [RefundController::class, 'approve']);
 Route::post('refunds/{refund}/reject', [RefundController::class, 'reject']);
 
 Route::get('inventory', [InventoryController::class, 'index']);
+Route::get('inventory/movements', [InventoryController::class, 'movements']);
 Route::get('inventory/{product}/adjust', [InventoryController::class, 'adjust']);
 Route::post('inventory/{product}/adjust', [InventoryController::class, 'doAdjust']);
 });
