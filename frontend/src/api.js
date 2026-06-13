@@ -260,3 +260,67 @@ export async function getProductsOnSale() {
   const data = await r.json();
   return data.data ?? data;
 }
+
+export async function getRefunds(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  const r = await fetch(BASE + '/refunds' + (q ? '?' + q : ''), { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getRefund(id) {
+  const r = await fetch(BASE + '/refunds/' + id, { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function createRefund(orderId, data) {
+  const r = await fetch(BASE + '/orders/' + orderId + '/refunds', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function approveRefund(refundId, auditRemark = '') {
+  const r = await fetch(BASE + '/refunds/' + refundId + '/approve', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+    body: JSON.stringify({ audit_remark: auditRemark }),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function rejectRefund(refundId, auditRemark) {
+  const r = await fetch(BASE + '/refunds/' + refundId + '/reject', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+    body: JSON.stringify({ audit_remark: auditRemark }),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}

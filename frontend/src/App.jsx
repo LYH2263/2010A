@@ -15,6 +15,8 @@ import CategoryEdit from './pages/CategoryEdit'
 import OrderList from './pages/OrderList'
 import OrderCreate from './pages/OrderCreate'
 import OrderShow from './pages/OrderShow'
+import RefundList from './pages/RefundList'
+import RefundShow from './pages/RefundShow'
 import InventoryList from './pages/InventoryList'
 import InventoryAdjust from './pages/InventoryAdjust'
 
@@ -39,6 +41,7 @@ function Layout({ children }) {
                 <NavLink to="/products" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>商品</NavLink>
                 <NavLink to="/categories" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>分类</NavLink>
                 <NavLink to="/orders" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>订单</NavLink>
+                <NavLink to="/refunds" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>退款</NavLink>
                 <NavLink to="/inventory" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>库存</NavLink>
               </div>
             </div>
@@ -90,6 +93,8 @@ function AppRoutes() {
                   <Route path="/orders" element={<OrderList />} />
                   <Route path="/orders/create" element={<OrderCreate />} />
                   <Route path="/orders/:id" element={<OrderShow />} />
+                  <Route path="/refunds" element={<RefundList />} />
+                  <Route path="/refunds/:id" element={<RefundShow />} />
                   <Route path="/inventory" element={<InventoryList />} />
                   <Route path="/inventory/:productId/adjust" element={<InventoryAdjust />} />
                   <Route path="*" element={<Navigate to="/" replace />} />

@@ -7,6 +7,8 @@ import { useConfirmDialog } from '../contexts/ConfirmDialogContext'
 
 const statusMap = { pending: '待付款', paid: '已付款', shipped: '已发货', cancelled: '已取消', completed: '已完成' }
 const statusClass = { pending: 'bg-amber-100 text-amber-800', paid: 'bg-green-100 text-green-800', shipped: 'bg-blue-100 text-blue-800', cancelled: 'bg-gray-100 text-gray-600', completed: 'bg-emerald-100 text-emerald-800' }
+const refundStatusMap = { none: '', partial: '部分退款', full: '全额退款' }
+const refundStatusClass = { none: '', partial: 'bg-orange-100 text-orange-800', full: 'bg-red-100 text-red-800' }
 
 const PER_PAGE = 15
 
@@ -166,11 +168,25 @@ export default function OrderList() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {list.map((o) => (
+                  {list.map((o) => {
+                    const netAmount = Number(o.total_amount) - Number(o.total_refunded_amount || 0)
+                    return (
                     <tr key={o.id} className="hover:bg-orange-50">
                       <td className="px-4 py-3 text-sm font-medium">{o.order_no}</td>
-                      <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs ${statusClass[o.status] || 'bg-gray-100'}`}>{statusMap[o.status] || o.status}</span></td>
-                      <td className="px-4 py-3 text-sm text-primary font-medium">¥{Number(o.total_amount).toFixed(2)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className={`px-2 py-0.5 rounded text-xs ${statusClass[o.status] || 'bg-gray-100'}`}>{statusMap[o.status] || o.status}</span>
+                          {o.refund_status && o.refund_status !== 'none' && (
+                            <span className={`px-2 py-0.5 rounded text-xs ${refundStatusClass[o.refund_status] || ''}`}>{refundStatusMap[o.refund_status]}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="text-primary font-medium">¥{Number(o.total_amount).toFixed(2)}</div>
+                        {Number(o.total_refunded_amount) > 0 && (
+                          <div className="text-red-600 text-xs mt-0.5">已退 ¥{Number(o.total_refunded_amount).toFixed(2)} · 实收 ¥{netAmount.toFixed(2)}</div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{o.created_at ? new Date(o.created_at).toLocaleString() : '-'}</td>
                       <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">

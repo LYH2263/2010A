@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Refund;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
@@ -15,35 +17,55 @@ class DashboardController extends Controller
             $productCount = Product::count();
             $orderCount = Order::count();
             $totalStock = Product::sum('stock') ?? 0;
-            $totalAmount = Order::whereIn('status', [Order::STATUS_PAID, Order::STATUS_SHIPPED])->sum('total_amount') ?? 0;
+
+            $paidOrders = Order::whereIn('status', [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_COMPLETED])->get();
+            $totalAmount = '0.00';
+            foreach ($paidOrders as $order) {
+                $orderRefunded = $order->total_refunded_amount;
+                $net = bcsub((string) $order->total_amount, (string) $orderRefunded, 2);
+                if (bccomp($net, '0.00', 2) > 0) {
+                    $totalAmount = bcadd($totalAmount, $net, 2);
+                }
+            }
 
             if ($request->expectsJson() || $request->is('api/*')) {
                 $recentOrders = Order::with('items')->orderBy('id', 'desc')->limit(8)->get();
+                $recentOrders->each(function ($o) {
+                    $o->setAppends(['refund_status', 'total_refunded_amount']);
+                });
                 $lowStockProducts = Product::where('stock', '<=', 10)->orderBy('stock')->limit(8)->get();
 
-                // 订单状态分布（用于饼图）
                 $orderCountsByStatus = Order::selectRaw('status, count(*) as count')
                     ->groupBy('status')
                     ->pluck('count', 'status')
                     ->toArray();
 
-                // 近 7 日订单数与金额（用于折线/柱状图）
                 $ordersByDate = Order::query()
                     ->where('created_at', '>=', now()->subDays(6)->startOfDay())
-                    ->selectRaw('date(created_at) as date, count(*) as count, coalesce(sum(total_amount), 0) as amount')
-                    ->groupBy('date')
-                    ->orderBy('date')
+                    ->with('refunds')
                     ->get()
-                    ->keyBy('date');
+                    ->groupBy(function ($o) {
+                        return $o->created_at->format('Y-m-d');
+                    });
                 $last7Days = collect(range(0, 6))->map(function ($i) {
                     return now()->subDays(6 - $i)->format('Y-m-d');
                 });
                 $chartOrdersByDate = $last7Days->map(function ($date) use ($ordersByDate) {
-                    $row = $ordersByDate->get($date);
+                    $rows = $ordersByDate->get($date, collect());
+                    $count = $rows->count();
+                    $amount = '0.00';
+                    foreach ($rows as $o) {
+                        if (in_array($o->status, [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_COMPLETED], true)) {
+                            $net = bcsub((string) $o->total_amount, (string) $o->total_refunded_amount, 2);
+                            if (bccomp($net, '0.00', 2) > 0) {
+                                $amount = bcadd($amount, $net, 2);
+                            }
+                        }
+                    }
                     return [
                         'date' => \Carbon\Carbon::parse($date)->format('m-d'),
-                        'count' => $row ? (int) $row->count : 0,
-                        'amount' => $row ? round((float) $row->amount, 2) : 0,
+                        'count' => $count,
+                        'amount' => round((float) $amount, 2),
                     ];
                 })->values()->toArray();
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\RefundController;
 use Illuminate\Support\Facades\Route;
 
 // 公开路由（无需认证）
@@ -36,6 +37,12 @@ Route::get('orders/create', [OrderController::class, 'create']);
 Route::post('orders', [OrderController::class, 'store']);
 Route::get('orders/{id}', [OrderController::class, 'show']);
 Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus']);
+
+Route::get('refunds', [RefundController::class, 'index']);
+Route::get('refunds/{id}', [RefundController::class, 'show']);
+Route::post('orders/{orderId}/refunds', [RefundController::class, 'store']);
+Route::post('refunds/{refund}/approve', [RefundController::class, 'approve']);
+Route::post('refunds/{refund}/reject', [RefundController::class, 'reject']);
 
 Route::get('inventory', [InventoryController::class, 'index']);
 Route::get('inventory/{product}/adjust', [InventoryController::class, 'adjust']);

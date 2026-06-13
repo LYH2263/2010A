@@ -15,7 +15,7 @@ class OrderService
      */
     public function list(int $perPage = 15, ?string $status = null, array $options = []): LengthAwarePaginator
     {
-        $q = Order::with('items')->orderBy('id', 'desc');
+        $q = Order::with(['items', 'refunds', 'refunds.items'])->orderBy('id', 'desc');
         if ($status !== null && $status !== '') {
             $q->where('status', $status);
         }
@@ -29,7 +29,11 @@ class OrderService
         if (!empty($filters['date_to'])) {
             $q->whereDate('created_at', '<=', $filters['date_to']);
         }
-        return $q->paginate($perPage);
+        $paginator = $q->paginate($perPage);
+        $paginator->getCollection()->each(function ($order) {
+            $order->setAppends(['refund_status', 'total_refunded_amount']);
+        });
+        return $paginator;
     }
 
     public function create(array $data): Order
@@ -56,8 +60,8 @@ class OrderService
                 if ($product->stock < $qty) {
                     throw new \InvalidArgumentException("商品【{$product->name}】库存不足，当前：{$product->stock}");
                 }
-                $subtotal = $product->price * $qty;
-                $total += $subtotal;
+                $subtotal = bcmul((string) $product->price, (string) $qty, 2);
+                $total = bcadd((string) $total, $subtotal, 2);
                 $orderItems[] = [
                     'product_id' => $product->id,
                     'product_name' => $product->name,
@@ -98,7 +102,15 @@ class OrderService
         }
         if ($status === Order::STATUS_CANCELLED && $order->status !== Order::STATUS_CANCELLED) {
             foreach ($order->items as $item) {
-                $item->product()->increment('stock', $item->quantity);
+                $hasRefunded = \App\Models\RefundItem::where('order_item_id', $item->id)
+                    ->whereHas('refund', function ($q) {
+                        $q->whereIn('status', [\App\Models\Refund::STATUS_APPROVED, \App\Models\Refund::STATUS_COMPLETED]);
+                    })
+                    ->sum('quantity');
+                $remaining = $item->quantity - (int) $hasRefunded;
+                if ($remaining > 0) {
+                    $item->product()->increment('stock', $remaining);
+                }
             }
         }
         $order->update(['status' => $status]);
@@ -107,6 +119,10 @@ class OrderService
 
     public function find(int $id): ?Order
     {
-        return Order::with('items.product')->find($id);
+        $order = Order::with(['items.product', 'refunds', 'refunds.items'])->find($id);
+        if ($order) {
+            $order->setAppends(['refund_status', 'total_refunded_amount']);
+        }
+        return $order;
     }
 }
