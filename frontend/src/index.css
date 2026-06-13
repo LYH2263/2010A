@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply text-[#333];
+  background-color: #f8f6f3;
+  background-image: radial-gradient(ellipse 60% 50% at 50% 20%, rgba(255, 237, 213, 0.4) 0%, transparent 50%);
+  background-repeat: no-repeat;
+  min-height: 100vh;
+}
+
+/* 全页面背景：渐变 + 装饰元素，填充左右与底部空白 */
+.layout-bg {
+  background-color: #f8f6f3;
+  background-image:
+    radial-gradient(ellipse 70% 60% at 15% 30%, rgba(255, 237, 213, 0.5) 0%, transparent 45%),
+    radial-gradient(ellipse 60% 50% at 85% 70%, rgba(254, 243, 199, 0.45) 0%, transparent 45%),
+    linear-gradient(180deg, transparent 0%, rgba(254, 243, 199, 0.12) 100%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  position: relative;
+}
+
+/* 左侧装饰圆 */
+.layout-bg::before {
+  content: '';
+  position: fixed;
+  left: -8%;
+  top: 35%;
+  width: 36%;
+  height: 40%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(251, 211, 141, 0.2) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 右侧装饰圆 */
+.layout-bg::after {
+  content: '';
+  position: fixed;
+  right: -10%;
+  bottom: 10%;
+  width: 32%;
+  height: 35%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(254, 215, 170, 0.22) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
