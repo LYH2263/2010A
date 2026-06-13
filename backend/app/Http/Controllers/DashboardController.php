@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductSku;
+use App\Models\ProductStock;
 use App\Models\Refund;
+use App\Models\Warehouse;
 use App\Services\NotificationService;
+use App\Services\WarehouseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -22,8 +25,19 @@ class DashboardController extends Controller
         try {
             $productCount = Product::count();
             $orderCount = Order::count();
-            $totalStock = ProductSku::sum('stock') ?? 0;
+            $totalStock = ProductStock::sum('stock') ?? 0;
             $defaultThreshold = $this->notificationService->getDefaultThreshold();
+            $warehouseService = new WarehouseService($this->notificationService);
+            $warehouses = $warehouseService->allActive();
+            $warehouseStats = [];
+            foreach ($warehouses as $w) {
+                $warehouseStats[] = $warehouseService->stats($w->id);
+            }
+            $totalValue = DB::table('product_stocks as ps')
+                ->leftJoin('product_skus as sku', 'ps.product_sku_id', 'sku.id')
+                ->leftJoin('products as p', 'ps.product_id', 'p.id')
+                ->selectRaw('SUM(COALESCE(sku.price, p.price) * ps.stock) as v')
+                ->value('v') ?? 0;
 
             $paidOrders = Order::whereIn('status', [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_COMPLETED])->get();
             $totalAmount = '0.00';
@@ -40,13 +54,26 @@ class DashboardController extends Controller
                 $recentOrders->each(function ($o) {
                     $o->setAppends(['refund_status', 'total_refunded_amount']);
                 });
-                $lowStockProducts = Product::with('skus')
+                $lowStockProducts = Product::with(['skus', 'warehouseStocks.warehouse'])
                     ->where(function ($mainQ) use ($defaultThreshold) {
-                        $mainQ->whereHas('skus', function ($q) use ($defaultThreshold) {
-                            $q->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
-                        })->orWhere(function ($productQ) use ($defaultThreshold) {
-                            $productQ->whereDoesntHave('skus')
-                                ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+                        $mainQ->whereHas('warehouseStocks', function ($q) use ($defaultThreshold) {
+                            $q->where(function ($stockQ) use ($defaultThreshold) {
+                                $stockQ->whereHas('sku', function ($skuQ) use ($defaultThreshold) {
+                                    $skuQ->whereRaw('product_stocks.stock <= COALESCE(product_skus.alert_threshold, ?)', [$defaultThreshold]);
+                                })->orWhere(function ($productStockQ) use ($defaultThreshold) {
+                                    $productStockQ->whereNull('product_sku_id')
+                                        ->whereHas('product', function ($productQ) use ($defaultThreshold) {
+                                            $productQ->whereRaw('product_stocks.stock <= COALESCE(products.alert_threshold, ?)', [$defaultThreshold]);
+                                        });
+                                });
+                            });
+                        })->orWhere(function ($legacyQ) use ($defaultThreshold) {
+                            $legacyQ->whereHas('skus', function ($q) use ($defaultThreshold) {
+                                $q->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+                            })->orWhere(function ($productQ) use ($defaultThreshold) {
+                                $productQ->whereDoesntHave('skus')
+                                    ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+                            });
                         });
                     })
                     ->orderBy('id')
@@ -91,6 +118,7 @@ class DashboardController extends Controller
                     'product_count' => $productCount,
                     'order_count' => $orderCount,
                     'total_stock' => (int) $totalStock,
+                    'total_value' => round((float) $totalValue, 2),
                     'total_amount' => round((float) $totalAmount, 2),
                     'recent_orders' => $recentOrders,
                     'low_stock_products' => $lowStockProducts,
@@ -98,6 +126,8 @@ class DashboardController extends Controller
                     'orders_by_date' => $chartOrdersByDate,
                     'default_alert_threshold' => $defaultThreshold,
                     'unread_notification_count' => $this->notificationService->unreadCount(),
+                    'warehouses' => $warehouses,
+                    'warehouse_stats' => $warehouseStats,
                 ]);
             }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { getProductsOnSale, createOrder, validateCoupon, resolveImageUrl, searchCustomers, createCustomer } from '../api'
+import { getProductsOnSale, createOrder, validateCoupon, resolveImageUrl, searchCustomers, createCustomer, getWarehousesActive } from '../api'
 import { useToast } from '../contexts/ToastContext'
 
 function getSpecText(sku) {
@@ -24,6 +24,10 @@ export default function OrderCreate() {
   const [err, setErr] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
+  const [warehouses, setWarehouses] = useState([])
+  const [orderWarehouseId, setOrderWarehouseId] = useState('')
+  const [itemWarehouses, setItemWarehouses] = useState({})
+
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [customerSearchKw, setCustomerSearchKw] = useState('')
   const [customerResults, setCustomerResults] = useState([])
@@ -41,9 +45,16 @@ export default function OrderCreate() {
   const [validatingCoupon, setValidatingCoupon] = useState(false)
   const debounceRef = useRef(null)
 
-  const load = () => getProductsOnSale().then((data) => {
-    setProducts(Array.isArray(data) ? data : (data.data ?? []))
-  }).catch((e) => { setErr(e.message); showToast(e.message) })
+  const load = () => {
+    Promise.all([
+      getProductsOnSale().then((data) => {
+        setProducts(Array.isArray(data) ? data : (data.data ?? []))
+      }),
+      getWarehousesActive().then((data) => {
+        setWarehouses(Array.isArray(data) ? data : (data.data ?? []))
+      })
+    ]).catch((e) => { setErr(e.message); showToast(e.message) })
+  }
 
   useEffect(() => { load() }, [])
 
@@ -116,6 +127,16 @@ export default function OrderCreate() {
     return quantities[key] ?? 0
   }
 
+  const handleItemWarehouseChange = (productId, skuId, warehouseId) => {
+    const key = `${productId}_${skuId}`
+    setItemWarehouses({ ...itemWarehouses, [key]: warehouseId })
+  }
+
+  const getItemWarehouse = (productId, skuId) => {
+    const key = `${productId}_${skuId}`
+    return itemWarehouses[key] ?? ''
+  }
+
   const buildOrderItems = () => {
     const items = []
     products.forEach((p) => {
@@ -124,7 +145,10 @@ export default function OrderCreate() {
         p.skus.forEach((sku) => {
           const qty = Number(getQty(p.id, sku.id))
           if (qty > 0) {
-            items.push({ product_id: p.id, product_sku_id: sku.id, quantity: qty })
+            const item = { product_id: p.id, product_sku_id: sku.id, quantity: qty }
+            const itemWhId = getItemWarehouse(p.id, sku.id)
+            if (itemWhId) item.warehouse_id = itemWhId
+            items.push(item)
           }
         })
       } else {
@@ -133,6 +157,8 @@ export default function OrderCreate() {
         if (qty > 0) {
           const item = { product_id: p.id, quantity: qty }
           if (skuId) item.product_sku_id = skuId
+          const itemWhId = getItemWarehouse(p.id, skuId || 'default')
+          if (itemWhId) item.warehouse_id = itemWhId
           items.push(item)
         }
       }
@@ -215,6 +241,9 @@ export default function OrderCreate() {
     const payload = { items, remark }
     if (selectedCustomer) {
       payload.customer_id = selectedCustomer.id
+    }
+    if (orderWarehouseId) {
+      payload.warehouse_id = orderWarehouseId
     }
     const code = couponCode.trim()
     if (code) {
@@ -314,6 +343,23 @@ export default function OrderCreate() {
                 <button type="button" onClick={() => { setShowQuickCreate(false); setQuickForm({ name: '', phone: '', email: '' }) }} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg text-sm font-medium">取消</button>
               </div>
             </div>
+          )}</div>
+
+          {warehouses.length > 0 && (
+            <div>
+              <label className="block text-base font-semibold text-gray-800 mb-2">发货仓库（订单级）</label>
+              <select
+                value={orderWarehouseId}
+                onChange={(e) => setOrderWarehouseId(e.target.value)}
+                className="block w-full rounded-lg border-2 border-gray-300 bg-white px-3 py-2.5 text-base text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+              >
+                <option value="">不指定（由系统自动分配）</option>
+                {warehouses.map((wh) => (
+                  <option key={wh.id} value={wh.id}>{wh.name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">选择后所有商品将默认从该仓库发货，也可在下方为每个商品单独指定</p>
+            </div>
           )}
 
           <div>
@@ -354,6 +400,18 @@ export default function OrderCreate() {
                             </span>
                             <span className="text-primary font-medium text-sm">¥{Number(sku.price).toFixed(2)}</span>
                             <span className="text-gray-500 text-xs">库存 {sku.stock}</span>
+                            {warehouses.length > 0 && (
+                              <select
+                                value={getItemWarehouse(p.id, sku.id)}
+                                onChange={(e) => handleItemWarehouseChange(p.id, sku.id, e.target.value)}
+                                className="w-32 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                              >
+                                <option value="">默认仓库</option>
+                                {warehouses.map((wh) => (
+                                  <option key={wh.id} value={wh.id}>{wh.name}</option>
+                                ))}
+                              </select>
+                            )}
                             <input
                               type="number"
                               min="0"
@@ -374,6 +432,18 @@ export default function OrderCreate() {
                         </span>
                         <span className="text-primary font-medium text-base">¥{Number(p.price).toFixed(2)}</span>
                         <span className="text-gray-500 text-sm">库存 {p.total_stock ?? p.stock}</span>
+                        {warehouses.length > 0 && (
+                          <select
+                            value={getItemWarehouse(p.id, p.skus?.[0]?.id || 'default')}
+                            onChange={(e) => handleItemWarehouseChange(p.id, p.skus?.[0]?.id || 'default', e.target.value)}
+                            className="w-32 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                          >
+                            <option value="">默认仓库</option>
+                            {warehouses.map((wh) => (
+                              <option key={wh.id} value={wh.id}>{wh.name}</option>
+                            ))}
+                          </select>
+                        )}
                         <input
                           type="number"
                           min="0"

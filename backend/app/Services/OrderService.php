@@ -50,9 +50,10 @@ class OrderService
 
     /**
      * @param array{
-     *   items: array<int, array{product_id: int, product_sku_id?: int, quantity: int}>,
+     *   items: array<int, array{product_id: int, product_sku_id?: int, quantity: int, warehouse_id?: int}>,
      *   remark?: string,
-     *   coupon_code?: string
+     *   coupon_code?: string,
+     *   warehouse_id?: int
      * } $data
      */
     public function create(array $data): Order
@@ -63,8 +64,9 @@ class OrderService
         }
 
         $couponCode = isset($data['coupon_code']) ? trim($data['coupon_code']) : null;
+        $defaultWarehouseId = $data['warehouse_id'] ?? null;
 
-        return DB::transaction(function () use ($items, $data, $couponCode) {
+        return DB::transaction(function () use ($items, $data, $couponCode, $defaultWarehouseId) {
             $orderNo = 'ORD' . date('YmdHis') . str_pad((string) random_int(1, 99), 2, '0', STR_PAD_LEFT);
             $originalTotal = '0.00';
             $orderItems = [];
@@ -87,9 +89,25 @@ class OrderService
                     throw new \InvalidArgumentException("商品【{$product->name}】SKU 不存在");
                 }
 
-                if ($sku->stock < $qty) {
+                $warehouseId = $row['warehouse_id'] ?? $defaultWarehouseId;
+                if ($warehouseId === null) {
+                    $warehouseId = \App\Models\Warehouse::getDefaultWarehouseId();
+                }
+                if (!$warehouseId) {
+                    throw new \InvalidArgumentException('未找到可用仓库');
+                }
+
+                $stock = \App\Models\ProductStock::where('product_sku_id', $sku->id)
+                    ->where('warehouse_id', $warehouseId)
+                    ->first();
+
+                $warehouse = \App\Models\Warehouse::find($warehouseId);
+                $warehouseName = $warehouse?->name ?? '未知仓库';
+
+                if (!$stock || $stock->stock < $qty) {
+                    $availableStock = $stock?->stock ?? 0;
                     $specText = $sku->spec_text ? "（{$sku->spec_text}）" : '';
-                    throw new \InvalidArgumentException("商品【{$product->name}{$specText}】库存不足，当前：{$sku->stock}");
+                    throw new \InvalidArgumentException("【{$warehouseName}】商品【{$product->name}{$specText}】库存不足，当前：{$availableStock}");
                 }
 
                 $subtotal = bcmul((string) $sku->price, (string) $qty, self::SCALE);
@@ -103,6 +121,7 @@ class OrderService
                 $orderItems[] = [
                     'product_id' => $product->id,
                     'product_sku_id' => $sku->id,
+                    'warehouse_id' => $warehouseId,
                     'product_name' => $product->name,
                     'sku_code' => $sku->sku,
                     'sku_specs' => $skuSpecs,
@@ -110,7 +129,7 @@ class OrderService
                     'quantity' => $qty,
                     'subtotal' => $subtotal,
                 ];
-                $stockChanges[] = ['sku' => $sku, 'product' => $product, 'qty' => $qty];
+                $stockChanges[] = ['sku' => $sku, 'product' => $product, 'qty' => $qty, 'warehouse_id' => $warehouseId];
                 $orderItemContexts[] = ['product' => $product, 'row' => $row, 'subtotal' => $subtotal];
             }
 
@@ -185,6 +204,7 @@ class OrderService
                         'related_type' => StockMovement::RELATED_TYPE_ORDER,
                         'related_id' => $order->id,
                         'reason' => '下单扣减库存',
+                        'warehouse_id' => $sc['warehouse_id'],
                     ]
                 );
             }
@@ -239,6 +259,8 @@ class OrderService
                     $remaining = $item->quantity - (int) $hasRefunded;
                     if ($remaining > 0) {
                         $sku = $item->sku;
+                        $warehouseId = $item->warehouse_id ?? \App\Models\Warehouse::getDefaultWarehouseId();
+
                         if ($sku) {
                             $this->inventoryService->changeSkuStock(
                                 $sku,
@@ -248,6 +270,7 @@ class OrderService
                                     'related_type' => StockMovement::RELATED_TYPE_ORDER,
                                     'related_id' => $order->id,
                                     'reason' => '取消订单回补库存',
+                                    'warehouse_id' => $warehouseId,
                                 ]
                             );
                         } else {
@@ -261,6 +284,7 @@ class OrderService
                                         'related_type' => StockMovement::RELATED_TYPE_ORDER,
                                         'related_id' => $order->id,
                                         'reason' => '取消订单回补库存',
+                                        'warehouse_id' => $warehouseId,
                                     ]
                                 );
                             }

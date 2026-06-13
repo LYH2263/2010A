@@ -26,6 +26,7 @@ class ProductController extends Controller
         $products = $this->productService->list($categoryId, $perPage, ['filters' => $filters]);
 
         if ($request->expectsJson()) {
+            $products->getCollection()->load('warehouseStocks.warehouse');
             return response()->json($products);
         }
         return view('products.index', ['products' => $products]);
@@ -66,6 +67,7 @@ class ProductController extends Controller
             abort(404);
         }
         if ($request->expectsJson()) {
+            $product->load('warehouseStocks.warehouse');
             return response()->json($product);
         }
         return view('products.show', ['product' => $product]);

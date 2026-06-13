@@ -25,6 +25,9 @@ export default function Dashboard() {
   const lowStock = data.low_stock_products || []
   const orderCountsByStatus = data.order_counts_by_status || {}
   const ordersByDate = data.orders_by_date || []
+  const warehouses = data.warehouses || []
+  const warehouseStats = data.warehouse_stats || []
+  const totalValue = data.total_value || 0
 
   const pieData = Object.entries(orderCountsByStatus)
     .filter(([, n]) => Number(n) > 0)
@@ -43,7 +46,7 @@ export default function Dashboard() {
       {/* 统计卡片 */}
       <div>
         <h2 className="text-lg font-semibold text-gray-800 mb-3">核心数据</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between">
               <div>
@@ -77,6 +80,16 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between">
               <div>
+                <p className="text-gray-500 text-sm">总库存价值</p>
+                <p className="text-2xl font-bold text-primary mt-1">¥{Number(totalValue).toFixed(2)}</p>
+                <p className="text-xs text-gray-400 mt-1">库存成本估值</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-green-600 text-xl font-bold">¥</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-gray-500 text-sm">已收款金额</p>
                 <p className="text-2xl font-bold text-primary mt-1">¥{Number(data.total_amount).toFixed(2)}</p>
                 <p className="text-xs text-gray-400 mt-1">已付款+已发货</p>
@@ -85,6 +98,46 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* 仓库库存统计 */}
+      {warehouses.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">仓库库存统计</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {warehouses.map((w) => {
+              const stats = warehouseStats.find((s) => s.warehouse_id === w.id) || {}
+              return (
+                <div key={w.id} className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-800">{w.name}</h3>
+                      {w.is_default && <span className="px-2 py-0.5 text-xs bg-primary-light text-primary rounded">默认</span>}
+                    </div>
+                    <span className="text-xs text-gray-400">{w.code}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <p className="text-gray-500 text-xs mb-1">库存总量</p>
+                      <p className="text-xl font-bold text-primary">{stats.total_stock || 0}</p>
+                      <p className="text-xs text-gray-400 mt-1">件</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-gray-500 text-xs mb-1">库存价值</p>
+                      <p className="text-xl font-bold text-green-600">¥{Number(stats.total_value || 0).toFixed(2)}</p>
+                      <p className="text-xs text-gray-400 mt-1">估值</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-gray-500 text-xs mb-1">低库存</p>
+                      <p className={`text-xl font-bold ${stats.low_stock_count > 0 ? 'text-orange-600' : 'text-gray-400'}`}>{stats.low_stock_count || 0}</p>
+                      <p className="text-xs text-gray-400 mt-1">商品数</p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 图表区域 */}
       {hasChartData && (
@@ -194,24 +247,45 @@ export default function Dashboard() {
             {lowStock.length === 0 ? (
               <div className="p-8 text-center text-gray-500">暂无低库存商品</div>
             ) : (
-              <table className="w-full min-w-[360px] divide-y divide-gray-200">
+              <table className="w-full min-w-[480px] divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">商品</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">SKU</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">库存</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">各仓库存</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {lowStock.map((p) => (
-                    <tr key={p.id} className="hover:bg-orange-50/50">
-                      <td className="px-4 py-2 text-sm font-medium">{p.name}</td>
-                      <td className="px-4 py-2 text-sm text-gray-500">{p.sku}</td>
-                      <td className="px-4 py-2 text-sm font-medium text-orange-600">{p.stock}</td>
-                      <td className="px-4 py-2"><Link to={'/inventory/' + p.id + '/adjust'} className="text-primary text-sm hover:underline">调整</Link></td>
-                    </tr>
-                  ))}
+                  {lowStock.map((p) => {
+                    const warehouseStocks = p.warehouseStocks || []
+                    const totalStock = warehouseStocks.reduce((sum, ws) => sum + (ws.stock || 0), p.stock || 0)
+                    return (
+                      <tr key={p.id} className="hover:bg-orange-50/50">
+                        <td className="px-4 py-2 text-sm font-medium">{p.name}</td>
+                        <td className="px-4 py-2 text-sm text-gray-500">{p.sku}</td>
+                        <td className="px-4 py-2">
+                          <div className="space-y-1">
+                            {warehouseStocks.length > 0 ? (
+                              warehouseStocks.map((ws) => (
+                                <div key={ws.id} className="flex items-center justify-between gap-2">
+                                  <span className="text-xs text-gray-500">{ws.warehouse?.name || '未知仓库'}</span>
+                                  <span className={`text-xs font-medium ${ws.stock <= 10 ? 'text-orange-600' : 'text-gray-700'}`}>
+                                    {ws.stock} 件
+                                  </span>
+                                </div>
+                              ))
+                            ) : (
+                              <span className={`text-sm font-medium ${totalStock <= 10 ? 'text-orange-600' : 'text-gray-700'}`}>
+                                总计 {totalStock} 件
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2"><Link to={'/inventory/' + p.id + '/adjust'} className="text-primary text-sm hover:underline">调整</Link></td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             )}

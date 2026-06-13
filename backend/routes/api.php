@@ -14,6 +14,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
 // 公开路由（无需认证）
@@ -105,4 +106,13 @@ Route::get('notifications/unread-count', [NotificationController::class, 'unread
 Route::get('notifications/{id}', [NotificationController::class, 'show']);
 Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
 Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+
+Route::get('warehouses', [WarehouseController::class, 'index']);
+Route::get('warehouses/active', [WarehouseController::class, 'allActive']);
+Route::get('warehouses/create', [WarehouseController::class, 'create']);
+Route::post('warehouses', [WarehouseController::class, 'store']);
+Route::get('warehouses/{id}', [WarehouseController::class, 'show']);
+Route::get('warehouses/{id}/edit', [WarehouseController::class, 'edit']);
+Route::put('warehouses/{warehouse}', [WarehouseController::class, 'update']);
+Route::delete('warehouses/{warehouse}', [WarehouseController::class, 'destroy']);
 });

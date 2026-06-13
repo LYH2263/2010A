@@ -7,12 +7,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OrderItem extends Model
 {
-    protected $fillable = ['order_id', 'product_id', 'product_sku_id', 'product_name', 'sku_code', 'sku_specs', 'price', 'quantity', 'subtotal'];
+    protected $fillable = [
+        'product_id', 'product_sku_id', 'warehouse_id', 'product_name', 'sku_code', 'sku_specs', 'price', 'quantity', 'subtotal'
+    ];
 
     protected $casts = [
         'price' => 'decimal:2',
-        'subtotal' => 'decimal:2',
         'quantity' => 'integer',
+        'subtotal' => 'decimal:2',
         'sku_specs' => 'array',
     ];
 
@@ -30,6 +32,12 @@ class OrderItem extends Model
     {
         return $this->belongsTo(ProductSku::class, 'product_sku_id');
     }
+
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+}
 
     public function getSpecTextAttribute(): string
     {

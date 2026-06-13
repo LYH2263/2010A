@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation, Link } from 'react-router-dom'
-import { getProduct, adjustInventory } from '../api'
+import { getProduct, adjustInventory, getWarehousesActive } from '../api'
 import { useToast } from '../contexts/ToastContext'
 
 function getSkuSpecText(sku) {
@@ -21,14 +21,18 @@ export default function InventoryAdjust() {
   const initialSkuId = location.state?.sku_id || ''
   const backTo = () => (fromDetail ? navigate('/products/' + productId) : navigate('/inventory'))
   const [product, setProduct] = useState(null)
+  const [warehouses, setWarehouses] = useState([])
   const [selectedSkuId, setSelectedSkuId] = useState(initialSkuId)
+  const [warehouseId, setWarehouseId] = useState('')
   const [delta, setDelta] = useState('')
   const [reason, setReason] = useState('')
   const [err, setErr] = useState(null)
 
   const load = () => getProduct(productId).then(setProduct).catch((e) => { setErr(e.message); showToast(e.message) })
+  const loadWarehouses = () => getWarehousesActive().then(setWarehouses).catch(() => setWarehouses([]))
 
   useEffect(() => { load() }, [productId])
+  useEffect(() => { loadWarehouses() }, [])
 
   useEffect(() => {
     if (product && initialSkuId && !selectedSkuId) {
@@ -43,8 +47,13 @@ export default function InventoryAdjust() {
       showToast('请输入有效的调整数量（正数入库，负数出库）')
       return
     }
+    if (warehouses.length > 0 && !warehouseId) {
+      showToast('请选择仓库')
+      return
+    }
     const skuId = selectedSkuId || null
-    adjustInventory(productId, d, reason, skuId)
+    const wId = warehouseId || null
+    adjustInventory(productId, d, reason, skuId, wId)
       .then(() => { showToast('库存已调整', 'success'); backTo() })
       .catch((e) => showToast(e.message))
   }
@@ -100,6 +109,22 @@ export default function InventoryAdjust() {
             <div className="text-sm text-gray-600">
               <span className="inline-block bg-gray-100 px-2 py-0.5 rounded mr-2 font-mono">{selectedSku.sku}</span>
               {getSkuSpecText(selectedSku)}
+            </div>
+          )}
+          {warehouses.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">选择仓库 <span className="text-red-500">*</span></label>
+              <select
+                value={warehouseId}
+                onChange={(e) => setWarehouseId(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                required
+              >
+                <option value="">请选择仓库</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
             </div>
           )}
           <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-gray-100">

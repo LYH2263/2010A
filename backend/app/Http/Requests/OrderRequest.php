@@ -17,10 +17,12 @@ class OrderRequest extends FormRequest
             'remark' => ['nullable', 'string', 'max:255'],
             'coupon_code' => ['nullable', 'string', 'max:64'],
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.product_sku_id' => ['nullable', 'exists:product_skus,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
         ];
     }
 

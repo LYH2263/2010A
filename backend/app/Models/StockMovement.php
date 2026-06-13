@@ -59,6 +59,11 @@ class StockMovement extends Model
         return $this->belongsTo(ProductSku::class, 'product_sku_id');
     }
 
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
     public function getSourceTypeLabelAttribute(): string
     {
         return self::$sourceTypeLabels[$this->source_type] ?? $this->source_type;

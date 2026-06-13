@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getProducts, getCategoriesAll, deleteProduct, resolveImageUrl } from '../api'
 import Pagination from '../components/Pagination'
@@ -6,6 +6,32 @@ import { useToast } from '../contexts/ToastContext'
 import { useConfirmDialog } from '../contexts/ConfirmDialogContext'
 
 const PER_PAGE = 15
+
+function getWarehouseStockSummary(item) {
+  const warehouseMap = new Map()
+  
+  const addStock = (warehouseStocks) => {
+    if (Array.isArray(warehouseStocks)) {
+      warehouseStocks.forEach(ws => {
+        const wh = ws.warehouse
+        if (wh) {
+          const key = wh.id
+          const current = warehouseMap.get(key) || { warehouse: wh, stock: 0 }
+          current.stock += Number(ws.stock) || 0
+          warehouseMap.set(key, current)
+        }
+      })
+    }
+  }
+  
+  if (item.skus && item.skus.length > 0) {
+    item.skus.forEach(sku => addStock(sku.warehouseStocks))
+  } else {
+    addStock(item.warehouseStocks)
+  }
+  
+  return Array.from(warehouseMap.values())
+}
 
 export default function ProductList() {
   const { showToast } = useToast()
@@ -18,6 +44,7 @@ export default function ProductList() {
   const [page, setPage] = useState(1)
   const [appliedKeyword, setAppliedKeyword] = useState('')
   const [appliedCategoryId, setAppliedCategoryId] = useState('')
+  const [expandedRows, setExpandedRows] = useState(new Set())
 
   const load = (p = page) => {
     const params = { per_page: PER_PAGE, page: p }
@@ -55,6 +82,16 @@ export default function ProductList() {
     })
     if (!ok) return
     deleteProduct(id).then(() => { showToast('商品已删除', 'success'); load(page) }).catch((e) => showToast(e.message))
+  }
+
+  const toggleExpand = (id) => {
+    const newExpanded = new Set(expandedRows)
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id)
+    } else {
+      newExpanded.add(id)
+    }
+    setExpandedRows(newExpanded)
   }
 
   if (err) return <div className="p-4 text-center text-gray-600">加载失败，请 <button type="button" onClick={() => { setErr(null); load(page) }} className="text-primary hover:underline">重试</button></div>
@@ -136,41 +173,79 @@ export default function ProductList() {
                     const maxPrice = hasMultiSku ? Math.max(...p.skus.map(s => Number(s.price))) : Number(p.price)
                     const totalStock = hasMultiSku ? p.skus.reduce((sum, s) => sum + Number(s.stock), 0) : Number(p.stock)
                     const priceText = minPrice === maxPrice ? `¥${minPrice.toFixed(2)}` : `¥${minPrice.toFixed(2)} ~ ¥${maxPrice.toFixed(2)}`
+                    const warehouseStocks = getWarehouseStockSummary(p)
+                    const hasWarehouseStock = warehouseStocks.length > 0
+                    const isExpanded = expandedRows.has(p.id)
 
                     return (
-                      <tr key={p.id} className="hover:bg-orange-50">
-                        <td className="px-4 py-3">
-                          {p.main_image_url || p.main_image_thumbnail ? (
-                            <img
-                              src={resolveImageUrl(p.main_image_url || p.main_image_thumbnail)}
-                              alt={p.name}
-                              className="w-12 h-12 object-cover rounded border border-gray-200 bg-white"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-xs">
-                              无图
+                      <React.Fragment key={p.id}>
+                        <tr className="hover:bg-orange-50">
+                          <td className="px-4 py-3">
+                            {p.main_image_url || p.main_image_thumbnail ? (
+                              <img
+                                src={resolveImageUrl(p.main_image_url || p.main_image_thumbnail)}
+                                alt={p.name}
+                                className="w-12 h-12 object-cover rounded border border-gray-200 bg-white"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-xs">
+                                无图
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{p.id}</td>
+                          <td className="px-4 py-3 text-sm font-medium">
+                            <div>{p.name}</div>
+                            {hasMultiSku && <div className="text-xs text-gray-400 mt-0.5">{p.skus.length} 个 SKU</div>}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{p.sku}</td>
+                          <td className="px-4 py-3 text-sm">{p.category?.name ?? '-'}</td>
+                          <td className="px-4 py-3 text-sm text-primary font-medium">{priceText}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex items-center gap-1">
+                              <span>{totalStock}</span>
+                              {hasWarehouseStock && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpand(p.id)}
+                                  className="text-primary hover:text-primary-hover focus:outline-none"
+                                  title={isExpanded ? '收起仓库库存' : '展开仓库库存'}
+                                >
+                                  <svg className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{p.id}</td>
-                        <td className="px-4 py-3 text-sm font-medium">
-                          <div>{p.name}</div>
-                          {hasMultiSku && <div className="text-xs text-gray-400 mt-0.5">{p.skus.length} 个 SKU</div>}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{p.sku}</td>
-                        <td className="px-4 py-3 text-sm">{p.category?.name ?? '-'}</td>
-                        <td className="px-4 py-3 text-sm text-primary font-medium">{priceText}</td>
-                        <td className="px-4 py-3 text-sm">{totalStock}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded text-xs ${p.status ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>{p.status ? '上架' : '下架'}</span>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <Link to={'/products/' + p.id} className="text-primary hover:underline">详情</Link>
-                          <Link to={'/products/' + p.id + '/edit'} state={{ from: 'list' }} className="text-primary hover:underline ml-2">编辑</Link>
-                          <button type="button" onClick={() => handleDelete(p.id, p.name)} className="text-red-600 hover:underline ml-2">删除</button>
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded text-xs ${p.status ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>{p.status ? '上架' : '下架'}</span>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <Link to={'/products/' + p.id} className="text-primary hover:underline">详情</Link>
+                            <Link to={'/products/' + p.id + '/edit'} state={{ from: 'list' }} className="text-primary hover:underline ml-2">编辑</Link>
+                            <button type="button" onClick={() => handleDelete(p.id, p.name)} className="text-red-600 hover:underline ml-2">删除</button>
+                          </td>
+                        </tr>
+                        {isExpanded && hasWarehouseStock && (
+                          <tr className="bg-gray-50">
+                            <td colSpan="9" className="px-4 py-3">
+                              <div className="ml-16">
+                                <div className="text-xs text-gray-500 mb-2">仓库库存分布：</div>
+                                <div className="flex flex-wrap gap-3">
+                                  {warehouseStocks.map((ws) => (
+                                    <div key={ws.warehouse.id} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                                      <span className="text-gray-600">{ws.warehouse.name}</span>
+                                      <span className="ml-2 font-medium text-primary">{ws.stock}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     )
                   })}
                 </tbody>

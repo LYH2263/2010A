@@ -28,18 +28,25 @@ class InventoryController extends Controller
         if ($categoryId !== null && $categoryId !== '') {
             $filters['category_id'] = (int) $categoryId;
         }
+        $warehouseId = $request->query('warehouse_id');
+        if ($warehouseId !== null && $warehouseId !== '') {
+            $filters['warehouse_id'] = (int) $warehouseId;
+        }
         if ($request->query('low_stock') === '1' || $request->query('low_stock') === 'true') {
             $filters['low_stock'] = true;
         }
         $products = $this->inventoryService->list($perPage, ['filters' => $filters]);
-        $stats = $this->inventoryService->stats();
+        $statsWarehouseId = $warehouseId !== null && $warehouseId !== '' ? (int) $warehouseId : null;
+        $stats = $this->inventoryService->stats($statsWarehouseId);
+        $warehouses = (new \App\Services\WarehouseService())->allForSelect();
         if ($request->expectsJson()) {
             return response()->json([
                 'products' => $products,
                 'stats' => $stats,
+                'warehouses' => $warehouses,
             ]);
         }
-        return view('inventory.index', ['products' => $products, 'stats' => $stats]);
+        return view('inventory.index', ['products' => $products, 'stats' => $stats, 'warehouses' => $warehouses]);
     }
 
     public function movements(Request $request): JsonResponse
@@ -55,6 +62,11 @@ class InventoryController extends Controller
         $skuId = $request->query('product_sku_id');
         if ($skuId !== null && $skuId !== '') {
             $filters['product_sku_id'] = (int) $skuId;
+        }
+
+        $warehouseId = $request->query('warehouse_id');
+        if ($warehouseId !== null && $warehouseId !== '') {
+            $filters['warehouse_id'] = (int) $warehouseId;
         }
 
         $sourceType = $request->query('source_type');
@@ -83,9 +95,12 @@ class InventoryController extends Controller
             $m->setAppends(['source_type_label']);
         });
 
+        $warehouses = (new \App\Services\WarehouseService())->allForSelect();
+
         return response()->json([
             'movements' => $movements,
             'source_types' => StockMovement::$sourceTypeLabels,
+            'warehouses' => $warehouses,
         ]);
     }
 
@@ -103,20 +118,21 @@ class InventoryController extends Controller
             $delta = (int) $request->input('delta');
             $reason = $request->input('reason') ?? '';
             $skuId = $request->input('product_sku_id');
+            $warehouseId = $request->input('warehouse_id');
 
             if ($skuId) {
                 $sku = ProductSku::where('id', $skuId)->where('product_id', $product->id)->first();
                 if (!$sku) {
                     throw new \InvalidArgumentException('SKU 不存在');
                 }
-                $this->inventoryService->adjustSku($sku, $delta, (string) $reason);
+                $this->inventoryService->adjustSku($sku, $delta, (string) $reason, $warehouseId ? (int) $warehouseId : null);
                 if ($request->expectsJson()) {
-                    return response()->json($sku->fresh()->load('specValues.spec'));
+                    return response()->json($sku->fresh()->load(['specValues.spec', 'warehouseStocks.warehouse']));
                 }
             } else {
-                $this->inventoryService->adjust($product, $delta, (string) $reason);
+                $this->inventoryService->adjust($product, $delta, (string) $reason, $warehouseId ? (int) $warehouseId : null);
                 if ($request->expectsJson()) {
-                    return response()->json($product->fresh());
+                    return response()->json($product->fresh()->load('warehouseStocks.warehouse'));
                 }
             }
 

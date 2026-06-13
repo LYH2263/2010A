@@ -236,9 +236,10 @@ export async function getInventory(params = {}) {
   return r.json();
 }
 
-export async function adjustInventory(productId, delta, reason = '', productSkuId = null) {
-  const body = { delta, reason }
-  if (productSkuId) body.product_sku_id = productSkuId
+export async function adjustInventory(productId, delta, reason = '', productSkuId = null, warehouseId = null) {
+  const body = { delta, reason };
+  if (productSkuId) body.product_sku_id = productSkuId;
+  if (warehouseId) body.warehouse_id = warehouseId;
   const r = await fetch(BASE + '/inventory/' + productId + '/adjust', {
     method: 'POST',
     headers: headers(),
@@ -876,5 +877,99 @@ export async function markAllNotificationsRead() {
     throw new Error(j.message || await r.text());
   }
   return r.json();
+}
+
+export async function getWarehouses(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  const r = await fetch(BASE + '/warehouses' + (q ? '?' + q : ''), { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getWarehousesActive() {
+  const r = await fetch(BASE + '/warehouses/active', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getWarehouseCreateMeta() {
+  const r = await fetch(BASE + '/warehouses/create', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getWarehouse(id) {
+  const r = await fetch(BASE + '/warehouses/' + id, { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getWarehouseEditMeta(id) {
+  const r = await fetch(BASE + '/warehouses/' + id + '/edit', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function createWarehouse(data) {
+  const r = await fetch(BASE + '/warehouses', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.status === 204 ? null : r.json();
+}
+
+export async function updateWarehouse(id, data) {
+  const r = await fetch(BASE + '/warehouses/' + id, {
+    method: 'PUT',
+    headers: { ...headers(), 'X-HTTP-Method-Override': 'PUT' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.status === 204 ? null : r.json();
+}
+
+export async function deleteWarehouse(id) {
+  const r = await fetch(BASE + '/warehouses/' + id, {
+    method: 'DELETE',
+    headers: { ...headers(), 'X-HTTP-Method-Override': 'DELETE' },
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const text = await r.text();
+    let msg = text;
+    try {
+      const j = JSON.parse(text);
+      if (j && j.message) msg = j.message;
+    } catch (_) {}
+    throw new Error(msg);
+  }
 }
 

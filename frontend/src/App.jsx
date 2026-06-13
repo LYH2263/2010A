@@ -38,6 +38,9 @@ import CustomerCreate from './pages/CustomerCreate'
 import CustomerEdit from './pages/CustomerEdit'
 import CustomerShow from './pages/CustomerShow'
 import NotificationCenter from './pages/NotificationCenter'
+import WarehouseList from './pages/WarehouseList'
+import WarehouseCreate from './pages/WarehouseCreate'
+import WarehouseEdit from './pages/WarehouseEdit'
 
 function BellIcon({ className = '' }) {
   return (
@@ -271,6 +274,7 @@ function Layout({ children }) {
                 <NavLink to="/refunds" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>退款</NavLink>
                 <NavLink to="/inventory" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>库存</NavLink>
                 <NavLink to="/inventory/movements" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>库存流水</NavLink>
+                <NavLink to="/warehouses" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>仓库管理</NavLink>
                 <NavLink to="/sales-report" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>销售分析</NavLink>
               </div>
             </div>
@@ -366,6 +370,9 @@ function AppRoutes() {
                   <Route path="/inventory/movements/:productId" element={<StockMovementList />} />
                   <Route path="/inventory/:productId/adjust" element={<InventoryAdjust />} />
                   <Route path="/sales-report" element={<SalesReport />} />
+                  <Route path="/warehouses" element={<WarehouseList />} />
+                  <Route path="/warehouses/create" element={<WarehouseCreate />} />
+                  <Route path="/warehouses/:id/edit" element={<WarehouseEdit />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </ProtectedRoute>

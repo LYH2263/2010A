@@ -224,6 +224,7 @@ export default function OrderShow() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">商品</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">发货仓库</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">单价</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">购买数量</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">已退数量</th>
@@ -248,6 +249,11 @@ export default function OrderShow() {
                           {specText && <span>{specText}</span>}
                         </div>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-block bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-medium">
+                        {item.warehouse?.name || '-'}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-sm">¥{Number(item.price).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm">{item.quantity}</td>

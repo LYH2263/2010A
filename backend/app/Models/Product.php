@@ -23,7 +23,7 @@ class Product extends Model
         'alert_threshold' => 'integer',
     ];
 
-    protected $appends = ['min_price', 'max_price', 'total_stock', 'has_multi_sku', 'main_image_url', 'main_image_thumbnail'];
+    protected $appends = ['min_price', 'max_price', 'total_stock', 'has_multi_sku', 'main_image_url', 'main_image_thumbnail', 'stock_by_warehouse'];
 
     public function category(): BelongsTo
     {
@@ -53,6 +53,11 @@ class Product extends Model
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class)->orderBy('id', 'desc');
+    }
+
+    public function warehouseStocks(): HasMany
+    {
+        return $this->hasMany(ProductStock::class);
     }
 
     public function images(): HasMany
@@ -115,10 +120,70 @@ class Product extends Model
 
     public function getTotalStockAttribute(): int
     {
+        if ($this->relationLoaded('warehouseStocks') && $this->warehouseStocks->isNotEmpty()) {
+            return (int) $this->warehouseStocks->sum('stock');
+        }
         if ($this->relationLoaded('skus') && $this->skus->isNotEmpty()) {
+            $skuIds = $this->skus->pluck('id');
+            $stock = \App\Models\ProductStock::whereIn('product_sku_id', $skuIds)->sum('stock');
+            if ($stock > 0) {
+                return (int) $stock;
+            }
             return (int) $this->skus->sum('stock');
         }
+        $stock = \App\Models\ProductStock::where('product_id', $this->id)
+            ->whereNull('product_sku_id')
+            ->sum('stock');
+        if ($stock > 0) {
+            return (int) $stock;
+        }
         return (int) $this->stock;
+    }
+
+    public function getStockByWarehouseAttribute(): array
+    {
+        $result = [];
+        if ($this->relationLoaded('warehouseStocks') && $this->warehouseStocks->isNotEmpty()) {
+            foreach ($this->warehouseStocks as $ws) {
+                $key = $ws->product_sku_id ? "sku_{$ws->product_sku_id}" : 'product';
+                if (!isset($result[$ws->warehouse_id])) {
+                    $result[$ws->warehouse_id] = [
+                        'warehouse_id' => $ws->warehouse_id,
+                        'warehouse_name' => $ws->warehouse?->name ?? '',
+                        'warehouse_code' => $ws->warehouse?->code ?? '',
+                        'total_stock' => 0,
+                        'skus' => [],
+                    ];
+                }
+                $result[$ws->warehouse_id][$key] = $ws->stock;
+                $result[$ws->warehouse_id]['total_stock'] += $ws->stock;
+                if ($ws->product_sku_id) {
+                    $result[$ws->warehouse_id]['skus'][$ws->product_sku_id] = $ws->stock;
+                }
+            }
+        } else {
+            $stocks = \App\Models\ProductStock::with('warehouse')
+                ->where('product_id', $this->id)
+                ->get();
+            foreach ($stocks as $ws) {
+                if (!isset($result[$ws->warehouse_id])) {
+                    $result[$ws->warehouse_id] = [
+                        'warehouse_id' => $ws->warehouse_id,
+                        'warehouse_name' => $ws->warehouse?->name ?? '',
+                        'warehouse_code' => $ws->warehouse?->code ?? '',
+                        'total_stock' => 0,
+                        'skus' => [],
+                    ];
+                }
+                if ($ws->product_sku_id) {
+                    $result[$ws->warehouse_id]['skus'][$ws->product_sku_id] = $ws->stock;
+                } else {
+                    $result[$ws->warehouse_id]['product_stock'] = $ws->stock;
+                }
+                $result[$ws->warehouse_id]['total_stock'] += $ws->stock;
+            }
+        }
+        return array_values($result);
     }
 
     public function getHasMultiSkuAttribute(): bool

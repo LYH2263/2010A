@@ -30,9 +30,11 @@ export default function InventoryList() {
   const [categories, setCategories] = useState([])
   const [keyword, setKeyword] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [warehouseId, setWarehouseId] = useState('')
   const [lowStockOnly, setLowStockOnly] = useState(false)
   const [appliedKeyword, setAppliedKeyword] = useState('')
   const [appliedCategoryId, setAppliedCategoryId] = useState('')
+  const [appliedWarehouseId, setAppliedWarehouseId] = useState('')
   const [appliedLowStockOnly, setAppliedLowStockOnly] = useState(false)
   const [expandedProducts, setExpandedProducts] = useState({})
 
@@ -40,17 +42,19 @@ export default function InventoryList() {
     const params = { per_page: PER_PAGE, page: p }
     if (appliedKeyword) params.keyword = appliedKeyword
     if (appliedCategoryId) params.category_id = appliedCategoryId
+    if (appliedWarehouseId) params.warehouse_id = appliedWarehouseId
     if (appliedLowStockOnly) params.low_stock = '1'
     return getInventory(params).then(setData).catch((e) => { setErr(e.message); showToast(e.message) })
   }
 
   useEffect(() => { getCategoriesAll().then(setCategories).catch(() => setCategories([])) }, [])
-  useEffect(() => { load(page) }, [page, appliedKeyword, appliedCategoryId, appliedLowStockOnly])
+  useEffect(() => { load(page) }, [page, appliedKeyword, appliedCategoryId, appliedWarehouseId, appliedLowStockOnly])
 
   const handleSearch = (e) => {
     e?.preventDefault()
     setAppliedKeyword(keyword.trim())
     setAppliedCategoryId(categoryId)
+    setAppliedWarehouseId(warehouseId)
     setAppliedLowStockOnly(lowStockOnly)
     setPage(1)
   }
@@ -58,9 +62,11 @@ export default function InventoryList() {
   const handleReset = () => {
     setKeyword('')
     setCategoryId('')
+    setWarehouseId('')
     setLowStockOnly(false)
     setAppliedKeyword('')
     setAppliedCategoryId('')
+    setAppliedWarehouseId('')
     setAppliedLowStockOnly(false)
     setPage(1)
   }
@@ -75,6 +81,7 @@ export default function InventoryList() {
   const paginator = data.products
   const products = paginator?.data ?? (Array.isArray(data.products) ? data.products : [])
   const stats = data.stats ?? {}
+  const warehouses = data.warehouses ?? []
   const lowStockList = products.filter(hasLowStockSku)
   const total = paginator?.total ?? products.length
   const currentPage = paginator?.current_page ?? 1
@@ -143,6 +150,21 @@ export default function InventoryList() {
             ))}
           </select>
         </label>
+        {warehouses.length > 0 && (
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-gray-600">仓库</span>
+            <select
+              value={warehouseId}
+              onChange={(e) => setWarehouseId(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm min-w-[120px] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
+            >
+              <option value="">全部仓库</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="flex items-center gap-2 h-[42px]">
           <input
             type="checkbox"
@@ -177,6 +199,7 @@ export default function InventoryList() {
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">商品编码</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">单价</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">当前库存</th>
+                    {warehouses.length > 0 && <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">库存分布</th>}
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">操作</th>
                   </tr>
                 </thead>
@@ -184,6 +207,8 @@ export default function InventoryList() {
                   {products.map((p) => {
                     const isExpanded = expandedProducts[p.id]
                     const hasMultiSku = p.skus && p.skus.length > 1
+                    const hasWarehouseStock = warehouses.length > 0 && p.warehouse_stocks && Array.isArray(p.warehouse_stocks) && p.warehouse_stocks.length > 0
+                    const canExpand = hasMultiSku || hasWarehouseStock
                     const isLowStock = hasLowStockSku(p)
                     const totalStock = p.total_stock ?? p.stock
                     const priceRange = p.min_price !== p.max_price
@@ -194,7 +219,7 @@ export default function InventoryList() {
                       <>
                         <tr key={p.id} className={isLowStock ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-orange-50'}>
                           <td className="px-4 py-3">
-                            {hasMultiSku && (
+                            {canExpand && (
                               <button
                                 type="button"
                                 onClick={() => toggleExpand(p.id)}
@@ -213,6 +238,19 @@ export default function InventoryList() {
                             {totalStock}
                             {hasMultiSku && <span className="text-gray-400 text-xs ml-1">（{p.skus.length} 个 SKU）</span>}
                           </td>
+                          {warehouses.length > 0 && (
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {hasWarehouseStock ? p.warehouse_stocks.map((ws) => (
+                                  <span key={ws.warehouse_id} className="inline-block bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs">
+                                    {ws.warehouse_name}: {ws.stock}
+                                  </span>
+                                )) : (
+                                  <span className="text-gray-400 text-xs">无库存分布</span>
+                                )}
+                              </div>
+                            </td>
+                          )}
                           <td className="px-4 py-3">
                             <div className="flex gap-3">
                               <Link to={'/inventory/' + p.id + '/adjust'} state={{ from: 'list' }} className="text-primary hover:underline">调整库存</Link>
@@ -220,9 +258,31 @@ export default function InventoryList() {
                             </div>
                           </td>
                         </tr>
+                        {isExpanded && hasWarehouseStock && (
+                          <tr key={`warehouse-${p.id}`} className="bg-blue-50 hover:bg-blue-100/50">
+                            <td className="px-4 py-2"></td>
+                            <td className="px-4 py-2 text-sm text-gray-400"></td>
+                            <td colSpan={warehouses.length > 0 ? 5 : 4}>
+                              <div className="pl-4">
+                                <p className="text-sm font-medium text-gray-700 mb-2">各仓库库存详情</p>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                  {p.warehouse_stocks.map((ws) => (
+                                    <div key={ws.warehouse_id} className="bg-white border border-gray-200 rounded-lg p-3">
+                                      <div className="text-xs text-gray-500 mb-1">{ws.warehouse_name}</div>
+                                      <div className="text-lg font-bold text-primary">{ws.stock}</div>
+                                      {ws.stock <= 10 && <span className="text-xs text-orange-600">低库存</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2"></td>
+                          </tr>
+                        )}
                         {isExpanded && hasMultiSku && p.skus.map((sku) => {
                           const specText = getSkuSpecText(sku)
                           const skuLowStock = sku.stock <= 10
+                          const skuHasWarehouseStock = warehouses.length > 0 && sku.warehouse_stocks && Array.isArray(sku.warehouse_stocks) && sku.warehouse_stocks.length > 0
                           return (
                             <tr key={`sku-${sku.id}`} className="bg-gray-50 hover:bg-gray-100/50">
                               <td className="px-4 py-2"></td>
@@ -236,6 +296,19 @@ export default function InventoryList() {
                               <td className="px-4 py-2 text-sm text-gray-500"></td>
                               <td className="px-4 py-2 text-sm text-primary font-medium">¥{Number(sku.price).toFixed(2)}</td>
                               <td className={`px-4 py-2 text-sm font-medium ${skuLowStock ? 'text-orange-600' : ''}">{sku.stock}</td>
+                              {warehouses.length > 0 && (
+                                <td className="px-4 py-2">
+                                  <div className="flex flex-wrap gap-1">
+                                    {skuHasWarehouseStock ? sku.warehouse_stocks.map((ws) => (
+                                      <span key={ws.warehouse_id} className="inline-block bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded text-xs">
+                                        {ws.warehouse_name}: {ws.stock}
+                                      </span>
+                                    )) : (
+                                      <span className="text-gray-400 text-xs">无</span>
+                                    )}
+                                  </div>
+                                </td>
+                              )}
                               <td className="px-4 py-2">
                                 <div className="flex gap-3">
                                   <Link

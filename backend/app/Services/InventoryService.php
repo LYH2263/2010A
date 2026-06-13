@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Product;
 use App\Models\ProductSku;
 use App\Models\StockMovement;
+use App\Models\ProductStock;
+use App\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
@@ -14,13 +16,11 @@ class InventoryService
         private NotificationService $notificationService
     ) {}
 
-    /**
-     * @param array{filters?: array{keyword?: string, category_id?: int, low_stock?: bool}} $options
-     */
     public function list(int $perPage = 15, array $options = []): \Illuminate\Contracts\Pagination\LengthAwarePaginator
     {
-        $q = Product::with(['category', 'skus.specValues.spec'])->orderBy('id');
+        $q = Product::with(['category', 'skus.specValues.spec', 'warehouseStocks.warehouse'])->orderBy('id');
         $filters = $options['filters'] ?? [];
+
         if (!empty($filters['keyword'])) {
             $kw = trim($filters['keyword']);
             $q->where(function ($q) use ($kw) {
@@ -31,56 +31,106 @@ class InventoryService
                     });
             });
         }
+
         if (isset($filters['category_id']) && $filters['category_id'] !== '' && $filters['category_id'] !== null) {
             $q->where('category_id', (int) $filters['category_id']);
         }
+
+        if (!empty($filters['warehouse_id']) && $filters['warehouse_id'] !== '') {
+            $warehouseId = (int) $filters['warehouse_id'];
+            $q->whereHas('warehouseStocks', function ($subQ) use ($warehouseId) {
+                $subQ->where('warehouse_id', $warehouseId);
+            })->with(['warehouseStocks' => function ($subQ) use ($warehouseId) {
+                $subQ->where('warehouse_id', $warehouseId);
+            }]);
+        }
+
         if (!empty($filters['low_stock'])) {
             $defaultThreshold = $this->notificationService->getDefaultThreshold();
-            $q->where(function ($mainQ) use ($defaultThreshold) {
-                $mainQ->whereHas('skus', function ($subQ) use ($defaultThreshold) {
-                    $subQ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
-                })->orWhere(function ($productQ) use ($defaultThreshold) {
-                    $productQ->whereDoesntHave('skus')
-                        ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+            $warehouseId = $filters['warehouse_id'] ?? null;
+
+            $q->where(function ($mainQ) use ($defaultThreshold, $warehouseId) {
+                $mainQ->whereHas('warehouseStocks', function ($subQ) use ($defaultThreshold, $warehouseId) {
+                    if ($warehouseId) {
+                        $subQ->where('warehouse_id', $warehouseId);
+                    }
+                    $subQ->where(function ($stockQ) use ($defaultThreshold) {
+                        $stockQ->whereHas('sku', function ($skuQ) use ($defaultThreshold) {
+                            $skuQ->whereRaw('product_stocks.stock <= COALESCE(product_skus.alert_threshold, ?)', [$defaultThreshold]);
+                        })->orWhere(function ($productStockQ) use ($defaultThreshold) {
+                            $productStockQ->whereNull('product_sku_id')
+                                ->whereHas('product', function ($productQ) use ($defaultThreshold) {
+                                    $productQ->whereRaw('product_stocks.stock <= COALESCE(products.alert_threshold, ?)', [$defaultThreshold]);
+                                });
+                        });
+                    });
+                })->orWhere(function ($productQ) use ($defaultThreshold, $warehouseId) {
+                    $productQ->whereDoesntHave('warehouseStocks', function ($subQ) use ($warehouseId) {
+                        if ($warehouseId) {
+                            $subQ->where('warehouse_id', $warehouseId);
+                        }
+                    })->where(function ($legacyQ) use ($defaultThreshold) {
+                        $legacyQ->whereHas('skus', function ($subQ) use ($defaultThreshold) {
+                            $subQ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+                        })->orWhere(function ($legacyProductQ) use ($defaultThreshold) {
+                            $legacyProductQ->whereDoesntHave('skus')
+                                ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+                        });
+                    });
                 });
             });
         }
+
         return $q->paginate($perPage);
     }
 
-    /**
-     * 统一的商品级库存变动方法，保证库存改动与流水写入在同一事务内
-     *
-     * @param Product $product
-     * @param int $delta 变化值（正数增加，负数扣减）
-     * @param string $sourceType 来源类型
-     * @param array{related_type?: string, related_id?: int, reason?: string, operator_id?: int} $context
-     * @return Product
-     * @throws \InvalidArgumentException
-     */
     public function changeStock(Product $product, int $delta, string $sourceType, array $context = []): Product
     {
         if ($delta === 0) {
             return $product;
         }
 
-        $result = DB::transaction(function () use ($product, $delta, $sourceType, $context) {
-            $p = Product::where('id', $product->id)->lockForUpdate()->first();
-            if (!$p) {
-                throw new \InvalidArgumentException('商品不存在');
+        $warehouseId = $context['warehouse_id'] ?? null;
+        if ($warehouseId === null) {
+            $warehouseId = Warehouse::getDefaultWarehouseId();
+        }
+        if (!$warehouseId) {
+            throw new \InvalidArgumentException('未找到可用仓库');
+        }
+
+        $result = DB::transaction(function () use ($product, $delta, $sourceType, $context, $warehouseId) {
+            $productStock = ProductStock::where('product_id', $product->id)
+                ->whereNull('product_sku_id')
+                ->where('warehouse_id', $warehouseId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$productStock) {
+                $productStock = ProductStock::create([
+                    'product_id' => $product->id,
+                    'product_sku_id' => null,
+                    'warehouse_id' => $warehouseId,
+                    'stock' => 0,
+                    'reserved_stock' => 0,
+                ]);
             }
 
-            $beforeQty = $p->stock;
+            $beforeQty = $productStock->stock;
             $afterQty = $beforeQty + $delta;
 
             if ($afterQty < 0) {
-                throw new \InvalidArgumentException("库存不足，当前：{$beforeQty}，无法扣减 " . abs($delta));
+                $warehouse = Warehouse::find($warehouseId);
+                $warehouseName = $warehouse?->name ?? '未知仓库';
+                throw new \InvalidArgumentException("【{$warehouseName}】库存不足，当前：{$beforeQty}，无法扣减 " . abs($delta));
             }
 
-            $p->update(['stock' => $afterQty]);
+            $productStock->update(['stock' => $afterQty]);
 
-            $lastMovement = StockMovement::where('product_id', $p->id)
+            $product->update(['stock' => $this->getProductTotalStock($product)]);
+
+            $lastMovement = StockMovement::where('product_id', $product->id)
                 ->whereNull('product_sku_id')
+                ->where('warehouse_id', $warehouseId)
                 ->orderBy('id', 'desc')
                 ->lockForUpdate()
                 ->first();
@@ -90,7 +140,8 @@ class InventoryService
             }
 
             StockMovement::create([
-                'product_id' => $p->id,
+                'product_id' => $product->id,
+                'warehouse_id' => $warehouseId,
                 'source_type' => $sourceType,
                 'before_quantity' => $beforeQty,
                 'delta' => $delta,
@@ -101,7 +152,7 @@ class InventoryService
                 'reason' => $context['reason'] ?? null,
             ]);
 
-            return ['product' => $p->fresh(), 'beforeQty' => $beforeQty, 'afterQty' => $afterQty, 'delta' => $delta];
+            return ['product' => $product->fresh(), 'beforeQty' => $beforeQty, 'afterQty' => $afterQty, 'delta' => $delta];
         });
 
         if ($result['delta'] < 0) {
@@ -111,38 +162,55 @@ class InventoryService
         return $result['product'];
     }
 
-    /**
-     * SKU 级库存变动方法
-     *
-     * @param ProductSku $sku
-     * @param int $delta 变化值（正数增加，负数扣减）
-     * @param string $sourceType 来源类型
-     * @param array{related_type?: string, related_id?: int, reason?: string, operator_id?: int} $context
-     * @return ProductSku
-     * @throws \InvalidArgumentException
-     */
     public function changeSkuStock(ProductSku $sku, int $delta, string $sourceType, array $context = []): ProductSku
     {
         if ($delta === 0) {
             return $sku;
         }
 
-        $result = DB::transaction(function () use ($sku, $delta, $sourceType, $context) {
-            $s = ProductSku::where('id', $sku->id)->lockForUpdate()->first();
-            if (!$s) {
-                throw new \InvalidArgumentException('SKU 不存在');
+        $warehouseId = $context['warehouse_id'] ?? null;
+        if ($warehouseId === null) {
+            $warehouseId = Warehouse::getDefaultWarehouseId();
+        }
+        if (!$warehouseId) {
+            throw new \InvalidArgumentException('未找到可用仓库');
+        }
+
+        $result = DB::transaction(function () use ($sku, $delta, $sourceType, $context, $warehouseId) {
+            $productStock = ProductStock::where('product_id', $sku->product_id)
+                ->where('product_sku_id', $sku->id)
+                ->where('warehouse_id', $warehouseId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$productStock) {
+                $productStock = ProductStock::create([
+                    'product_id' => $sku->product_id,
+                    'product_sku_id' => $sku->id,
+                    'warehouse_id' => $warehouseId,
+                    'stock' => 0,
+                    'reserved_stock' => 0,
+                ]);
             }
 
-            $beforeQty = $s->stock;
+            $beforeQty = $productStock->stock;
             $afterQty = $beforeQty + $delta;
 
             if ($afterQty < 0) {
-                throw new \InvalidArgumentException("SKU 库存不足，当前：{$beforeQty}，无法扣减 " . abs($delta));
+                $warehouse = Warehouse::find($warehouseId);
+                $warehouseName = $warehouse?->name ?? '未知仓库';
+                throw new \InvalidArgumentException("【{$warehouseName}】SKU 库存不足，当前：{$beforeQty}，无法扣减 " . abs($delta));
             }
 
-            $s->update(['stock' => $afterQty]);
+            $productStock->update(['stock' => $afterQty]);
 
-            $lastMovement = StockMovement::where('product_sku_id', $s->id)
+            $sku->update(['stock' => $this->getSkuTotalStock($sku)]);
+
+            $product = Product::find($sku->product_id);
+            $product?->update(['stock' => $this->getProductTotalStock($product)]);
+
+            $lastMovement = StockMovement::where('product_sku_id', $sku->id)
+                ->where('warehouse_id', $warehouseId)
                 ->orderBy('id', 'desc')
                 ->lockForUpdate()
                 ->first();
@@ -152,8 +220,9 @@ class InventoryService
             }
 
             StockMovement::create([
-                'product_id' => $s->product_id,
-                'product_sku_id' => $s->id,
+                'product_id' => $sku->product_id,
+                'product_sku_id' => $sku->id,
+                'warehouse_id' => $warehouseId,
                 'source_type' => $sourceType,
                 'before_quantity' => $beforeQty,
                 'delta' => $delta,
@@ -164,8 +233,7 @@ class InventoryService
                 'reason' => $context['reason'] ?? null,
             ]);
 
-            $freshSku = $s->fresh();
-            $product = Product::find($s->product_id);
+            $freshSku = $sku->fresh();
 
             return ['sku' => $freshSku, 'product' => $product, 'beforeQty' => $beforeQty, 'afterQty' => $afterQty, 'delta' => $delta];
         });
@@ -177,26 +245,48 @@ class InventoryService
         return $result['sku'];
     }
 
-    public function adjust(Product $product, int $delta, ?string $reason = ''): Product
+    public function adjust(Product $product, int $delta, ?string $reason = '', ?int $warehouseId = null): Product
     {
         return $this->changeStock($product, $delta, StockMovement::SOURCE_MANUAL_ADJUST, [
             'reason' => $reason,
+            'warehouse_id' => $warehouseId,
         ]);
     }
 
-    public function adjustSku(ProductSku $sku, int $delta, ?string $reason = ''): ProductSku
+    public function adjustSku(ProductSku $sku, int $delta, ?string $reason = '', ?int $warehouseId = null): ProductSku
     {
         return $this->changeSkuStock($sku, $delta, StockMovement::SOURCE_MANUAL_ADJUST, [
             'reason' => $reason,
+            'warehouse_id' => $warehouseId,
         ]);
     }
 
-    /**
-     * @param array{filters?: array{product_id?: int, source_type?: string, date_from?: string, date_to?: string, keyword?: string}} $options
-     */
+    public function transferStock(ProductSku $sku, int $fromWarehouseId, int $toWarehouseId, int $quantity, ?string $reason = ''): void
+    {
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException('调拨数量必须大于 0');
+        }
+
+        if ($fromWarehouseId === $toWarehouseId) {
+            throw new \InvalidArgumentException('调出仓库和调入仓库不能相同');
+        }
+
+        DB::transaction(function () use ($sku, $fromWarehouseId, $toWarehouseId, $quantity, $reason) {
+            $this->changeSkuStock($sku, -$quantity, StockMovement::SOURCE_MANUAL_ADJUST, [
+                'warehouse_id' => $fromWarehouseId,
+                'reason' => $reason ? "{$reason}（调出）" : '调拨出库',
+            ]);
+
+            $this->changeSkuStock($sku, $quantity, StockMovement::SOURCE_MANUAL_ADJUST, [
+                'warehouse_id' => $toWarehouseId,
+                'reason' => $reason ? "{$reason}（调入）" : '调拨入库',
+            ]);
+        });
+    }
+
     public function listMovements(int $perPage = 15, array $options = []): \Illuminate\Contracts\Pagination\LengthAwarePaginator
     {
-        $q = StockMovement::with(['product', 'sku', 'operator'])->orderBy('id', 'desc');
+        $q = StockMovement::with(['product', 'sku', 'operator', 'warehouse'])->orderBy('id', 'desc');
         $filters = $options['filters'] ?? [];
 
         if (!empty($filters['product_id']) && $filters['product_id'] !== '') {
@@ -204,6 +294,9 @@ class InventoryService
         }
         if (!empty($filters['product_sku_id']) && $filters['product_sku_id'] !== '') {
             $q->where('product_sku_id', (int) $filters['product_sku_id']);
+        }
+        if (!empty($filters['warehouse_id']) && $filters['warehouse_id'] !== '') {
+            $q->where('warehouse_id', (int) $filters['warehouse_id']);
         }
         if (!empty($filters['source_type']) && $filters['source_type'] !== '') {
             $q->where('source_type', $filters['source_type']);
@@ -225,20 +318,37 @@ class InventoryService
         return $q->paginate($perPage);
     }
 
-    public function stats(): array
+    public function stats(?int $warehouseId = null): array
     {
-        $totalStock = ProductSku::sum('stock');
-        $totalValue = DB::table('product_skus')->selectRaw('SUM(price * stock) as v')->value('v') ?? 0;
+        $query = ProductStock::query();
+        $valueQuery = DB::table('product_stocks as ps')
+            ->leftJoin('product_skus as sku', 'ps.product_sku_id', '=', 'sku.id')
+            ->leftJoin('products as p', 'ps.product_id', '=', 'p.id');
+
+        if ($warehouseId) {
+            $query->where('warehouse_id', $warehouseId);
+            $valueQuery->where('ps.warehouse_id', $warehouseId);
+        }
+
+        $totalStock = $query->sum('stock');
+        $totalValue = $valueQuery->selectRaw('SUM(COALESCE(sku.price, p.price) * ps.stock) as v')->value('v') ?? 0;
         $defaultThreshold = $this->notificationService->getDefaultThreshold();
 
-        $lowStockCount = Product::where(function ($q) use ($defaultThreshold) {
-            $q->whereHas('skus', function ($subQ) use ($defaultThreshold) {
-                $subQ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
-            })->orWhere(function ($productQ) use ($defaultThreshold) {
-                $productQ->whereDoesntHave('skus')
-                    ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+        $lowStockQuery = ProductStock::query();
+        if ($warehouseId) {
+            $lowStockQuery->where('warehouse_id', $warehouseId);
+        }
+
+        $lowStockCount = $lowStockQuery->where(function ($q) use ($defaultThreshold) {
+            $q->whereHas('sku', function ($subQ) use ($defaultThreshold) {
+                $subQ->whereRaw('product_stocks.stock <= COALESCE(product_skus.alert_threshold, ?)', [$defaultThreshold]);
+            })->orWhere(function ($productStockQ) use ($defaultThreshold) {
+                $productStockQ->whereNull('product_sku_id')
+                    ->whereHas('product', function ($productQ) use ($defaultThreshold) {
+                        $productQ->whereRaw('product_stocks.stock <= COALESCE(products.alert_threshold, ?)', [$defaultThreshold]);
+                    });
             });
-        })->count();
+        })->distinct('product_id')->count('product_id');
 
         return [
             'total_stock' => (int) $totalStock,
@@ -246,5 +356,38 @@ class InventoryService
             'low_stock_count' => $lowStockCount,
             'default_alert_threshold' => $defaultThreshold,
         ];
+    }
+
+    protected function getProductTotalStock(Product $product): int
+    {
+        return (int) ProductStock::where('product_id', $product->id)->sum('stock');
+    }
+
+    protected function getSkuTotalStock(ProductSku $sku): int
+    {
+        return (int) ProductStock::where('product_sku_id', $sku->id)->sum('stock');
+    }
+
+    public function getProductWarehouseStocks(Product $product): array
+    {
+        return ProductStock::with('warehouse')
+            ->where('product_id', $product->id)
+            ->get()
+            ->groupBy('warehouse_id')
+            ->map(function ($stocks, $warehouseId) {
+                $warehouse = $stocks->first()->warehouse;
+                return [
+                    'warehouse_id' => $warehouseId,
+                    'warehouse_name' => $warehouse?->name ?? '',
+                    'warehouse_code' => $warehouse?->code ?? '',
+                    'total_stock' => $stocks->sum('stock'),
+                    'skus' => $stocks->whereNotNull('product_sku_id')->mapWithKeys(function ($s) {
+                        return [$s->product_sku_id => $s->stock];
+                    }),
+                    'product_stock' => $stocks->whereNull('product_sku_id')->first()?->stock ?? 0,
+                ];
+            })
+            ->values()
+            ->toArray();
     }
 }

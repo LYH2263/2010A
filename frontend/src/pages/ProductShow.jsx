@@ -15,6 +15,66 @@ function getSpecText(sku) {
   return ''
 }
 
+function getWarehouseStockSummary(item) {
+  const warehouseMap = new Map()
+  
+  const addStock = (warehouseStocks) => {
+    if (Array.isArray(warehouseStocks)) {
+      warehouseStocks.forEach(ws => {
+        const wh = ws.warehouse
+        if (wh) {
+          const key = wh.id
+          const current = warehouseMap.get(key) || { warehouse: wh, stock: 0 }
+          current.stock += Number(ws.stock) || 0
+          warehouseMap.set(key, current)
+        }
+      })
+    }
+  }
+  
+  if (item.skus && item.skus.length > 0) {
+    item.skus.forEach(sku => addStock(sku.warehouseStocks))
+  } else {
+    addStock(item.warehouseStocks)
+  }
+  
+  return Array.from(warehouseMap.values())
+}
+
+function getWarehouseStockBySku(item) {
+  const result = []
+  
+  if (item.skus && item.skus.length > 0) {
+    item.skus.forEach(sku => {
+      if (Array.isArray(sku.warehouseStocks) && sku.warehouseStocks.length > 0) {
+        sku.warehouseStocks.forEach(ws => {
+          result.push({
+            skuId: sku.id,
+            sku: sku.sku,
+            specText: getSpecText(sku),
+            warehouse: ws.warehouse,
+            stock: Number(ws.stock) || 0
+          })
+        })
+      }
+    })
+  } else {
+    if (Array.isArray(item.warehouseStocks)) {
+      item.warehouseStocks.forEach(ws => {
+        result.push({
+          skuId: null,
+          sku: item.sku,
+          specText: '',
+          warehouse: ws.warehouse,
+          stock: Number(ws.stock) || 0
+        })
+      })
+    }
+  }
+  
+  return result
+}
+
 export default function ProductShow() {
   const { id } = useParams()
   const { showToast } = useToast()
@@ -33,6 +93,9 @@ export default function ProductShow() {
   const maxPrice = hasMultiSku ? Math.max(...product.skus.map(s => Number(s.price))) : Number(product.price)
   const totalStock = hasMultiSku ? product.skus.reduce((sum, s) => sum + Number(s.stock), 0) : Number(product.stock)
   const priceText = minPrice === maxPrice ? `¥${minPrice.toFixed(2)}` : `¥${minPrice.toFixed(2)} ~ ¥${maxPrice.toFixed(2)}`
+  const warehouseStockSummary = getWarehouseStockSummary(product)
+  const warehouseStockBySku = getWarehouseStockBySku(product)
+  const hasWarehouseStock = warehouseStockSummary.length > 0
 
   return (
     <div className="space-y-4">
@@ -118,6 +181,54 @@ export default function ProductShow() {
           </>
         )}
       </div>
+
+      {hasWarehouseStock && (
+        <div className="bg-white rounded-xl shadow border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 bg-primary-light border-b border-orange-100">
+            <h2 className="font-semibold text-gray-800">仓库库存分布</h2>
+          </div>
+          <div className="p-6">
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">按仓库汇总</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {warehouseStockSummary.map((ws) => (
+                  <div key={ws.warehouse.id} className="bg-primary-light/30 border border-primary/20 rounded-lg p-4 text-center">
+                    <div className="text-sm text-gray-600 mb-1">{ws.warehouse.name}</div>
+                    <div className="text-2xl font-bold text-primary">{ws.stock}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">按 SKU 明细</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {hasMultiSku && <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">SKU 编码</th>}
+                      {hasMultiSku && <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">规格</th>}
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">仓库编码</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">仓库名称</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">库存</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {warehouseStockBySku.map((item, idx) => (
+                      <tr key={`${item.skuId || 'default'}-${item.warehouse.id}-${idx}`} className="hover:bg-orange-50">
+                        {hasMultiSku && <td className="px-4 py-3 text-sm">{item.sku}</td>}
+                        {hasMultiSku && <td className="px-4 py-3 text-sm text-gray-600">{item.specText || '-'}</td>}
+                        <td className="px-4 py-3 text-sm text-gray-500">{item.warehouse.code}</td>
+                        <td className="px-4 py-3 text-sm font-medium">{item.warehouse.name}</td>
+                        <td className={`px-4 py-3 text-sm font-medium ${item.stock <= 10 ? 'text-orange-600' : ''}`}>{item.stock}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {hasMultiSku && (
         <div className="bg-white rounded-xl shadow border border-gray-100 overflow-hidden">
