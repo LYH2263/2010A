@@ -9,13 +9,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class ProductSku extends Model
 {
     protected $fillable = [
-        'product_id', 'sku', 'price', 'stock', 'is_default'
+        'product_id', 'sku', 'price', 'stock', 'is_default', 'alert_threshold'
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'stock' => 'integer',
         'is_default' => 'boolean',
+        'alert_threshold' => 'integer',
     ];
 
     public function product(): BelongsTo

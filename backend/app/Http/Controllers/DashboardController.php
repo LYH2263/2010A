@@ -6,18 +6,24 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductSku;
 use App\Models\Refund;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
+    public function __construct(
+        private NotificationService $notificationService
+    ) {}
+
     public function index(Request $request)
     {
         try {
             $productCount = Product::count();
             $orderCount = Order::count();
             $totalStock = ProductSku::sum('stock') ?? 0;
+            $defaultThreshold = $this->notificationService->getDefaultThreshold();
 
             $paidOrders = Order::whereIn('status', [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_COMPLETED])->get();
             $totalAmount = '0.00';
@@ -35,8 +41,13 @@ class DashboardController extends Controller
                     $o->setAppends(['refund_status', 'total_refunded_amount']);
                 });
                 $lowStockProducts = Product::with('skus')
-                    ->whereHas('skus', function ($q) {
-                        $q->where('stock', '<=', 10);
+                    ->where(function ($mainQ) use ($defaultThreshold) {
+                        $mainQ->whereHas('skus', function ($q) use ($defaultThreshold) {
+                            $q->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+                        })->orWhere(function ($productQ) use ($defaultThreshold) {
+                            $productQ->whereDoesntHave('skus')
+                                ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+                        });
                     })
                     ->orderBy('id')
                     ->limit(8)
@@ -85,6 +96,8 @@ class DashboardController extends Controller
                     'low_stock_products' => $lowStockProducts,
                     'order_counts_by_status' => $orderCountsByStatus,
                     'orders_by_date' => $chartOrdersByDate,
+                    'default_alert_threshold' => $defaultThreshold,
+                    'unread_notification_count' => $this->notificationService->unreadCount(),
                 ]);
             }
 

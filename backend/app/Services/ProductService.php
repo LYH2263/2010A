@@ -64,6 +64,7 @@ class ProductService
                 'price' => $data['price'],
                 'stock' => $data['stock'] ?? 0,
                 'status' => $data['status'] ?? 1,
+                'alert_threshold' => isset($data['alert_threshold']) && $data['alert_threshold'] !== '' ? (int) $data['alert_threshold'] : null,
             ]);
 
             if ($hasSpecs) {
@@ -75,6 +76,7 @@ class ProductService
                     'price' => $product->price,
                     'stock' => $product->stock,
                     'is_default' => true,
+                    'alert_threshold' => $product->alert_threshold,
                 ]);
             }
 
@@ -114,6 +116,7 @@ class ProductService
                 'price' => $data['price'],
                 'stock' => $data['stock'] ?? $product->stock,
                 'status' => $data['status'] ?? $product->status,
+                'alert_threshold' => isset($data['alert_threshold']) && $data['alert_threshold'] !== '' ? (int) $data['alert_threshold'] : null,
             ]);
 
             if ($hasSpecs) {
@@ -127,6 +130,7 @@ class ProductService
                         'sku' => $product->sku,
                         'price' => $product->price,
                         'stock' => $product->stock,
+                        'alert_threshold' => $product->alert_threshold,
                     ]);
                 } else {
                     ProductSku::create([
@@ -135,6 +139,7 @@ class ProductService
                         'price' => $product->price,
                         'stock' => $product->stock,
                         'is_default' => true,
+                        'alert_threshold' => $product->alert_threshold,
                     ]);
                 }
             }
@@ -182,12 +187,16 @@ class ProductService
         $skuIndex = 0;
         foreach ($skusData as $skuData) {
             $isDefault = $skuIndex === 0;
+            $skuThreshold = isset($skuData['alert_threshold']) && $skuData['alert_threshold'] !== ''
+                ? (int) $skuData['alert_threshold']
+                : $product->alert_threshold;
             $sku = ProductSku::create([
                 'product_id' => $product->id,
                 'sku' => $skuData['sku'],
                 'price' => $skuData['price'],
                 'stock' => (int) ($skuData['stock'] ?? 0),
                 'is_default' => $isDefault,
+                'alert_threshold' => $skuThreshold,
             ]);
 
             if (!empty($skuData['spec_values'])) {

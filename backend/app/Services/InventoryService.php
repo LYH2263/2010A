@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Auth;
 
 class InventoryService
 {
+    public function __construct(
+        private NotificationService $notificationService
+    ) {}
+
     /**
      * @param array{filters?: array{keyword?: string, category_id?: int, low_stock?: bool}} $options
      */
@@ -31,8 +35,14 @@ class InventoryService
             $q->where('category_id', (int) $filters['category_id']);
         }
         if (!empty($filters['low_stock'])) {
-            $q->whereHas('skus', function ($subQ) {
-                $subQ->where('stock', '<=', 10);
+            $defaultThreshold = $this->notificationService->getDefaultThreshold();
+            $q->where(function ($mainQ) use ($defaultThreshold) {
+                $mainQ->whereHas('skus', function ($subQ) use ($defaultThreshold) {
+                    $subQ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+                })->orWhere(function ($productQ) use ($defaultThreshold) {
+                    $productQ->whereDoesntHave('skus')
+                        ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+                });
             });
         }
         return $q->paginate($perPage);
@@ -54,7 +64,7 @@ class InventoryService
             return $product;
         }
 
-        return DB::transaction(function () use ($product, $delta, $sourceType, $context) {
+        $result = DB::transaction(function () use ($product, $delta, $sourceType, $context) {
             $p = Product::where('id', $product->id)->lockForUpdate()->first();
             if (!$p) {
                 throw new \InvalidArgumentException('商品不存在');
@@ -91,8 +101,14 @@ class InventoryService
                 'reason' => $context['reason'] ?? null,
             ]);
 
-            return $p->fresh();
+            return ['product' => $p->fresh(), 'beforeQty' => $beforeQty, 'afterQty' => $afterQty, 'delta' => $delta];
         });
+
+        if ($result['delta'] < 0) {
+            $this->notificationService->checkAndCreateLowStockAlert($result['product']);
+        }
+
+        return $result['product'];
     }
 
     /**
@@ -111,7 +127,7 @@ class InventoryService
             return $sku;
         }
 
-        return DB::transaction(function () use ($sku, $delta, $sourceType, $context) {
+        $result = DB::transaction(function () use ($sku, $delta, $sourceType, $context) {
             $s = ProductSku::where('id', $sku->id)->lockForUpdate()->first();
             if (!$s) {
                 throw new \InvalidArgumentException('SKU 不存在');
@@ -148,8 +164,17 @@ class InventoryService
                 'reason' => $context['reason'] ?? null,
             ]);
 
-            return $s->fresh();
+            $freshSku = $s->fresh();
+            $product = Product::find($s->product_id);
+
+            return ['sku' => $freshSku, 'product' => $product, 'beforeQty' => $beforeQty, 'afterQty' => $afterQty, 'delta' => $delta];
         });
+
+        if ($result['delta'] < 0 && $result['product']) {
+            $this->notificationService->checkAndCreateLowStockAlert($result['product'], $result['sku']);
+        }
+
+        return $result['sku'];
     }
 
     public function adjust(Product $product, int $delta, ?string $reason = ''): Product
@@ -204,14 +229,22 @@ class InventoryService
     {
         $totalStock = ProductSku::sum('stock');
         $totalValue = DB::table('product_skus')->selectRaw('SUM(price * stock) as v')->value('v') ?? 0;
-        $lowStockCount = Product::whereHas('skus', function ($q) {
-            $q->where('stock', '<=', 10);
+        $defaultThreshold = $this->notificationService->getDefaultThreshold();
+
+        $lowStockCount = Product::where(function ($q) use ($defaultThreshold) {
+            $q->whereHas('skus', function ($subQ) use ($defaultThreshold) {
+                $subQ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+            })->orWhere(function ($productQ) use ($defaultThreshold) {
+                $productQ->whereDoesntHave('skus')
+                    ->whereRaw('stock <= COALESCE(alert_threshold, ?)', [$defaultThreshold]);
+            });
         })->count();
 
         return [
             'total_stock' => (int) $totalStock,
             'total_value' => round((float) $totalValue, 2),
             'low_stock_count' => $lowStockCount,
+            'default_alert_threshold' => $defaultThreshold,
         ];
     }
 }

@@ -13,6 +13,7 @@ use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 // 公开路由（无需认证）
@@ -97,4 +98,11 @@ Route::put('purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
 Route::delete('purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
 Route::post('purchase-orders/{id}/submit', [PurchaseOrderController::class, 'submit']);
 Route::post('purchase-orders/{id}/stock-in', [PurchaseOrderController::class, 'stockIn']);
+
+Route::get('notifications', [NotificationController::class, 'index']);
+Route::get('notifications/summary', [NotificationController::class, 'summary']);
+Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount']);
+Route::get('notifications/{id}', [NotificationController::class, 'show']);
+Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
 });

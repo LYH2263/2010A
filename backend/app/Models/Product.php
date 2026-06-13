@@ -13,13 +13,14 @@ class Product extends Model
     const STATUS_INACTIVE = 0;
 
     protected $fillable = [
-        'category_id', 'name', 'sku', 'description', 'price', 'stock', 'status'
+        'category_id', 'name', 'sku', 'description', 'price', 'stock', 'status', 'alert_threshold'
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'stock' => 'integer',
         'status' => 'integer',
+        'alert_threshold' => 'integer',
     ];
 
     protected $appends = ['min_price', 'max_price', 'total_stock', 'has_multi_sku', 'main_image_url', 'main_image_thumbnail'];

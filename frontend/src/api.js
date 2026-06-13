@@ -813,3 +813,68 @@ export async function searchCustomers(keyword = '') {
   return r.json();
 }
 
+export async function getNotifications(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  const r = await fetch(BASE + '/notifications' + (q ? '?' + q : ''), { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getNotificationSummary() {
+  const r = await fetch(BASE + '/notifications/summary', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getNotificationUnreadCount() {
+  const r = await fetch(BASE + '/notifications/unread-count', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getNotification(id) {
+  const r = await fetch(BASE + '/notifications/' + id, { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function markNotificationRead(id) {
+  const r = await fetch(BASE + '/notifications/' + id + '/read', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function markAllNotificationsRead() {
+  const r = await fetch(BASE + '/notifications/read-all', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+

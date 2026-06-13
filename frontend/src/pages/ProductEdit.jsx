@@ -27,6 +27,7 @@ function generateSkuMatrix(specs) {
       sku: '',
       price: '',
       stock: 0,
+      alert_threshold: '',
       spec_values: specValues,
     }
   })
@@ -80,6 +81,7 @@ export default function ProductEdit() {
             sku: sku.sku,
             price: sku.price,
             stock: sku.stock,
+            alert_threshold: sku.alert_threshold !== null && sku.alert_threshold !== undefined ? String(sku.alert_threshold) : '',
             spec_values: specValues,
           }
         }))
@@ -96,6 +98,7 @@ export default function ProductEdit() {
         stock: p.stock,
         status: p.status,
         description: p.description || '',
+        alert_threshold: p.alert_threshold !== null && p.alert_threshold !== undefined ? String(p.alert_threshold) : '',
       })
 
       if (Array.isArray(p.images)) {
@@ -195,6 +198,7 @@ export default function ProductEdit() {
         stock: skus.reduce((sum, s) => sum + Number(s.stock || 0), 0),
         status: Number(form.status),
         description: form.description || null,
+        alert_threshold: form.alert_threshold !== '' ? Number(form.alert_threshold) : null,
         specs: specs.filter(s => s.name.trim() && s.values.some(v => v.trim())).map(s => ({
           name: s.name.trim(),
           values: s.values.filter(v => v.trim()).map(v => v.trim()),
@@ -203,6 +207,7 @@ export default function ProductEdit() {
           sku: s.sku.trim(),
           price: s.price,
           stock: Number(s.stock) || 0,
+          alert_threshold: s.alert_threshold !== '' ? Number(s.alert_threshold) : null,
           spec_values: s.spec_values,
         })),
         images: images.map(img => ({ id: img.id, is_main: !!img.is_main })),
@@ -219,6 +224,7 @@ export default function ProductEdit() {
         stock: form.stock,
         status: Number(form.status),
         description: form.description || null,
+        alert_threshold: form.alert_threshold !== '' ? Number(form.alert_threshold) : null,
         images: images.map(img => ({ id: img.id, is_main: !!img.is_main })),
       }
       updateProduct(id, payload)
@@ -286,7 +292,7 @@ export default function ProductEdit() {
             </div>
 
             {!hasSpecs && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-base font-semibold text-gray-800 mb-1.5">单价 <span className="text-red-500">*</span></label>
                   <input type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required placeholder="0.00" className="block w-full rounded-lg border-2 border-gray-300 bg-white px-3 py-2.5 text-base text-gray-800 placeholder-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none" />
@@ -294,6 +300,13 @@ export default function ProductEdit() {
                 <div>
                   <label className="block text-base font-semibold text-gray-800 mb-1.5">库存</label>
                   <input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="block w-full rounded-lg border-2 border-gray-300 bg-white px-3 py-2.5 text-base text-gray-800 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-base font-semibold text-gray-800 mb-1.5">
+                    预警阈值
+                    <span className="text-xs text-gray-500 font-normal ml-1">（空=全局默认）</span>
+                  </label>
+                  <input type="number" min="0" value={form.alert_threshold} onChange={(e) => setForm({ ...form, alert_threshold: e.target.value })} placeholder="留空使用全局默认值 10" className="block w-full rounded-lg border-2 border-gray-300 bg-white px-3 py-2.5 text-base text-gray-800 placeholder-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none" />
                 </div>
               </div>
             )}
@@ -341,13 +354,14 @@ export default function ProductEdit() {
                   <div className="border-t border-gray-200 pt-4">
                     <h3 className="text-sm font-medium text-gray-700 mb-3">SKU 列表（共 {skus.length} 个）</h3>
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[600px] text-sm border border-gray-200 rounded-lg overflow-hidden">
+                      <table className="w-full min-w-[720px] text-sm border border-gray-200 rounded-lg overflow-hidden">
                         <thead className="bg-primary-light">
                           <tr>
                             <th className="px-3 py-2 text-left text-gray-700 font-medium">规格组合</th>
                             <th className="px-3 py-2 text-left text-gray-700 font-medium">SKU 编码</th>
                             <th className="px-3 py-2 text-left text-gray-700 font-medium">价格</th>
                             <th className="px-3 py-2 text-left text-gray-700 font-medium">库存</th>
+                            <th className="px-3 py-2 text-left text-gray-700 font-medium">预警阈值</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 bg-white">
@@ -382,6 +396,16 @@ export default function ProductEdit() {
                                   onChange={(e) => updateSkuField(idx, 'stock', e.target.value)}
                                   placeholder="0"
                                   className="w-24 rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={sku.alert_threshold}
+                                  onChange={(e) => updateSkuField(idx, 'alert_threshold', e.target.value)}
+                                  placeholder="空=继承商品"
+                                  className="w-28 rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none"
                                 />
                               </td>
                             </tr>
