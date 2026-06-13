@@ -24,6 +24,12 @@ import InventoryList from './pages/InventoryList'
 import InventoryAdjust from './pages/InventoryAdjust'
 import StockMovementList from './pages/StockMovementList'
 import SalesReport from './pages/SalesReport'
+import SupplierList from './pages/SupplierList'
+import SupplierCreate from './pages/SupplierCreate'
+import SupplierEdit from './pages/SupplierEdit'
+import PurchaseOrderList from './pages/PurchaseOrderList'
+import PurchaseOrderCreate from './pages/PurchaseOrderCreate'
+import PurchaseOrderShow from './pages/PurchaseOrderShow'
 
 function Layout({ children }) {
   const { user, logout } = useAuth()
@@ -41,10 +47,12 @@ function Layout({ children }) {
           <div className="flex justify-between items-center h-20 min-h-[5rem]">
             <div className="flex items-center">
               <NavLink to="/" className="text-primary font-bold text-3xl">商品管理系统</NavLink>
-              <div className="ml-12 flex items-center gap-8">
+              <div className="ml-12 flex items-center gap-8 flex-wrap">
                 <NavLink to="/" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>仪表盘</NavLink>
                 <NavLink to="/products" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>商品</NavLink>
                 <NavLink to="/categories" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>分类</NavLink>
+                <NavLink to="/suppliers" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>供应商</NavLink>
+                <NavLink to="/purchase-orders" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>采购单</NavLink>
                 <NavLink to="/orders" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>订单</NavLink>
                 <NavLink to="/coupons" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>优惠券</NavLink>
                 <NavLink to="/refunds" className={({ isActive }) => `text-lg font-medium ${isActive ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}>退款</NavLink>
@@ -98,6 +106,13 @@ function AppRoutes() {
                   <Route path="/categories" element={<CategoryList />} />
                   <Route path="/categories/create" element={<CategoryCreate />} />
                   <Route path="/categories/:id/edit" element={<CategoryEdit />} />
+                  <Route path="/suppliers" element={<SupplierList />} />
+                  <Route path="/suppliers/create" element={<SupplierCreate />} />
+                  <Route path="/suppliers/:id/edit" element={<SupplierEdit />} />
+                  <Route path="/purchase-orders" element={<PurchaseOrderList />} />
+                  <Route path="/purchase-orders/create" element={<PurchaseOrderCreate />} />
+                  <Route path="/purchase-orders/:id/edit" element={<PurchaseOrderCreate />} />
+                  <Route path="/purchase-orders/:id" element={<PurchaseOrderShow />} />
                   <Route path="/orders" element={<OrderList />} />
                   <Route path="/orders/create" element={<OrderCreate />} />
                   <Route path="/orders/:id" element={<OrderShow />} />

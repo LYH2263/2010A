@@ -516,3 +516,203 @@ export function exportSalesReportUrl(params = {}) {
   return BASE + '/sales-report/export' + (q ? '?' + q : '');
 }
 
+export async function getSuppliers(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  const r = await fetch(BASE + '/suppliers' + (q ? '?' + q : ''), { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getSuppliersActive() {
+  const r = await fetch(BASE + '/suppliers/active', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getSupplierCreateMeta() {
+  const r = await fetch(BASE + '/suppliers/create', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getSupplierEditMeta(id) {
+  const r = await fetch(BASE + '/suppliers/' + id + '/edit', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function createSupplier(data) {
+  const r = await fetch(BASE + '/suppliers', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function updateSupplier(id, data) {
+  const r = await fetch(BASE + '/suppliers/' + id, {
+    method: 'PUT',
+    headers: { ...headers(), 'X-HTTP-Method-Override': 'PUT' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function deleteSupplier(id) {
+  const r = await fetch(BASE + '/suppliers/' + id, {
+    method: 'DELETE',
+    headers: { ...headers(), 'X-HTTP-Method-Override': 'DELETE' },
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const text = await r.text();
+    let msg = text;
+    try {
+      const j = JSON.parse(text);
+      if (j && j.message) msg = j.message;
+    } catch (_) {}
+    throw new Error(msg);
+  }
+}
+
+export async function getPurchaseOrders(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  const r = await fetch(BASE + '/purchase-orders' + (q ? '?' + q : ''), { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getPurchaseOrder(id) {
+  const r = await fetch(BASE + '/purchase-orders/' + id, { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function getPurchaseOrderCreateMeta() {
+  const r = await fetch(BASE + '/purchase-orders/create', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    throw new Error(await r.text());
+  }
+  return r.json();
+}
+
+export async function getPurchaseOrderEditMeta(id) {
+  const r = await fetch(BASE + '/purchase-orders/' + id + '/edit', { headers: headers(), credentials: 'include' });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function createPurchaseOrder(data) {
+  const r = await fetch(BASE + '/purchase-orders', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.status === 204 ? null : r.json();
+}
+
+export async function updatePurchaseOrder(id, data) {
+  const r = await fetch(BASE + '/purchase-orders/' + id, {
+    method: 'PUT',
+    headers: { ...headers(), 'X-HTTP-Method-Override': 'PUT' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.status === 204 ? null : r.json();
+}
+
+export async function deletePurchaseOrder(id) {
+  const r = await fetch(BASE + '/purchase-orders/' + id, {
+    method: 'DELETE',
+    headers: { ...headers(), 'X-HTTP-Method-Override': 'DELETE' },
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const text = await r.text();
+    let msg = text;
+    try {
+      const j = JSON.parse(text);
+      if (j && j.message) msg = j.message;
+    } catch (_) {}
+    throw new Error(msg);
+  }
+}
+
+export async function submitPurchaseOrder(id) {
+  const r = await fetch(BASE + '/purchase-orders/' + id + '/submit', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+
+export async function stockInPurchaseOrder(id) {
+  const r = await fetch(BASE + '/purchase-orders/' + id + '/stock-in', {
+    method: 'POST',
+    headers: headers(),
+    credentials: 'include',
+  });
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('UNAUTHORIZED');
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.message || await r.text());
+  }
+  return r.json();
+}
+

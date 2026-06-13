@@ -10,6 +10,8 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\SalesReportController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\PurchaseOrderController;
 use Illuminate\Support\Facades\Route;
 
 // 公开路由（无需认证）
@@ -66,4 +68,23 @@ Route::delete('product-images/{id}', [ProductImageController::class, 'destroy'])
 
 Route::get('sales-report', [SalesReportController::class, 'index']);
 Route::get('sales-report/export', [SalesReportController::class, 'export']);
+
+Route::get('suppliers/active', [SupplierController::class, 'allActive']);
+Route::get('suppliers', [SupplierController::class, 'index']);
+Route::get('suppliers/create', [SupplierController::class, 'create']);
+Route::post('suppliers', [SupplierController::class, 'store']);
+Route::get('suppliers/{id}', [SupplierController::class, 'show']);
+Route::get('suppliers/{id}/edit', [SupplierController::class, 'edit']);
+Route::put('suppliers/{id}', [SupplierController::class, 'update']);
+Route::delete('suppliers/{id}', [SupplierController::class, 'destroy']);
+
+Route::get('purchase-orders', [PurchaseOrderController::class, 'index']);
+Route::get('purchase-orders/create', [PurchaseOrderController::class, 'create']);
+Route::post('purchase-orders', [PurchaseOrderController::class, 'store']);
+Route::get('purchase-orders/{id}', [PurchaseOrderController::class, 'show']);
+Route::get('purchase-orders/{id}/edit', [PurchaseOrderController::class, 'edit']);
+Route::put('purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
+Route::delete('purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
+Route::post('purchase-orders/{id}/submit', [PurchaseOrderController::class, 'submit']);
+Route::post('purchase-orders/{id}/stock-in', [PurchaseOrderController::class, 'stockIn']);
 });
