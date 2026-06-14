@@ -106,11 +106,12 @@ class InventoryService
                 ->first();
 
             if (!$productStock) {
+                $existingStock = (int) $product->stock;
                 $productStock = ProductStock::create([
                     'product_id' => $product->id,
                     'product_sku_id' => null,
                     'warehouse_id' => $warehouseId,
-                    'stock' => 0,
+                    'stock' => $existingStock,
                     'reserved_stock' => 0,
                 ]);
             }
@@ -184,11 +185,12 @@ class InventoryService
                 ->first();
 
             if (!$productStock) {
+                $existingStock = (int) $sku->stock;
                 $productStock = ProductStock::create([
                     'product_id' => $sku->product_id,
                     'product_sku_id' => $sku->id,
                     'warehouse_id' => $warehouseId,
-                    'stock' => 0,
+                    'stock' => $existingStock,
                     'reserved_stock' => 0,
                 ]);
             }
