@@ -130,9 +130,12 @@ class WarehouseService
         $lowStockCount = ProductStock::where('warehouse_id', $warehouseId)
             ->where(function ($q) use ($defaultThreshold) {
                 $q->whereHas('sku', function ($subQ) use ($defaultThreshold) {
-                    $subQ->whereRaw('ps.stock <= COALESCE(sku.alert_threshold, ?)', [$defaultThreshold]);
-                })->orWhereHas('product', function ($subQ) use ($defaultThreshold) {
-                    $subQ->whereRaw('ps.stock <= COALESCE(p.alert_threshold, ?)', [$defaultThreshold]);
+                    $subQ->whereRaw('product_stocks.stock <= COALESCE(product_skus.alert_threshold, ?)', [$defaultThreshold]);
+                })->orWhere(function ($subQ) use ($defaultThreshold) {
+                    $subQ->whereNull('product_sku_id')
+                        ->whereHas('product', function ($productQ) use ($defaultThreshold) {
+                            $productQ->whereRaw('product_stocks.stock <= COALESCE(products.alert_threshold, ?)', [$defaultThreshold]);
+                        });
                 });
             })
             ->count();
