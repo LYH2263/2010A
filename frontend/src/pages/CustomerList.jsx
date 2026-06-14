@@ -22,6 +22,7 @@ export default function CustomerList() {
   const [searchKw, setSearchKw] = useState('')
   const [searchStatus, setSearchStatus] = useState('')
   const [searchLevel, setSearchLevel] = useState('')
+  const [sort, setSort] = useState('id_desc')
   const [statusLabels, setStatusLabels] = useState({})
   const [levelLabels, setLevelLabels] = useState({})
 
@@ -30,6 +31,7 @@ export default function CustomerList() {
     if (searchKw) params.keyword = searchKw
     if (searchStatus !== '') params.status = searchStatus
     if (searchLevel) params.level = searchLevel
+    if (sort) params.sort = sort
     getCustomers(params)
       .then((data) => {
         setRes(data.customers || data)
@@ -39,7 +41,7 @@ export default function CustomerList() {
       .catch((e) => { setErr(e.message); showToast(e.message) })
   }
 
-  useEffect(() => { load(page) }, [page, searchKw, searchStatus, searchLevel])
+  useEffect(() => { load(page) }, [page, searchKw, searchStatus, searchLevel, sort])
 
   const handleSearch = (e) => {
     e.preventDefault()
@@ -56,6 +58,7 @@ export default function CustomerList() {
     setSearchKw('')
     setSearchStatus('')
     setSearchLevel('')
+    setSort('id_desc')
     setPage(1)
   }
 
@@ -95,8 +98,8 @@ export default function CustomerList() {
         <Link to="/customers/create" className="bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-lg font-medium shrink-0">新增客户</Link>
       </div>
 
-      <form onSubmit={handleSearch} className="bg-white rounded-xl shadow border border-gray-100 p-4 flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
+      <form onSubmit={handleSearch} className="bg-white rounded-xl shadow border border-gray-100 p-4 flex flex-col sm:flex-row flex-wrap gap-3">
+        <div className="flex-1 min-w-[180px]">
           <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索姓名 / 手机号" className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none" />
         </div>
         <div className="w-full sm:w-36">
@@ -113,6 +116,15 @@ export default function CustomerList() {
             {Object.entries(levelLabels).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
             ))}
+          </select>
+        </div>
+        <div className="w-full sm:w-44">
+          <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1) }} className="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none">
+            <option value="id_desc">默认（最新）</option>
+            <option value="total_spent_desc">消费额从高到低</option>
+            <option value="total_spent_asc">消费额从低到高</option>
+            <option value="total_orders_desc">订单数从多到少</option>
+            <option value="total_orders_asc">订单数从少到多</option>
           </select>
         </div>
         <div className="flex gap-2">

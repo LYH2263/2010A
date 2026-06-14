@@ -221,7 +221,7 @@ class RefundService
             if ($lockedRefund->order->customer_id) {
                 $customer = Customer::find($lockedRefund->order->customer_id);
                 if ($customer) {
-                    $this->customerService->subtractOrderStats($customer, (string) $lockedRefund->refund_amount);
+                    $this->customerService->subtractSpentOnly($customer, (string) $lockedRefund->refund_amount);
                 }
             }
 

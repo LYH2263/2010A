@@ -34,7 +34,13 @@ class CustomerController extends Controller
             $filters['level'] = trim($level);
         }
 
-        $customers = $this->customerService->list($perPage, ['filters' => $filters]);
+        $sort = $request->query('sort', 'id_desc');
+        $allowedSorts = ['id_desc', 'id_asc', 'total_spent_desc', 'total_spent_asc', 'total_orders_desc', 'total_orders_asc'];
+        if (!in_array($sort, $allowedSorts, true)) {
+            $sort = 'id_desc';
+        }
+
+        $customers = $this->customerService->list($perPage, ['filters' => $filters, 'sort' => $sort]);
 
         $customers->getCollection()->each(function ($c) {
             $c->setAppends(['status_label', 'level_label']);

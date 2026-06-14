@@ -12,8 +12,9 @@ class CustomerService
 {
     public function list(int $perPage = 15, array $options = []): LengthAwarePaginator
     {
-        $q = Customer::orderBy('id', 'desc');
+        $q = Customer::query();
         $filters = $options['filters'] ?? [];
+        $sort = $options['sort'] ?? 'id_desc';
 
         if (!empty($filters['keyword'])) {
             $kw = trim($filters['keyword']);
@@ -29,6 +30,28 @@ class CustomerService
 
         if (!empty($filters['level'])) {
             $q->where('level', $filters['level']);
+        }
+
+        switch ($sort) {
+            case 'total_spent_desc':
+                $q->orderByRaw('CAST(total_spent AS DECIMAL(12,2)) DESC')->orderBy('id', 'desc');
+                break;
+            case 'total_spent_asc':
+                $q->orderByRaw('CAST(total_spent AS DECIMAL(12,2)) ASC')->orderBy('id', 'desc');
+                break;
+            case 'total_orders_desc':
+                $q->orderBy('total_orders', 'desc')->orderBy('id', 'desc');
+                break;
+            case 'total_orders_asc':
+                $q->orderBy('total_orders', 'asc')->orderBy('id', 'desc');
+                break;
+            case 'id_asc':
+                $q->orderBy('id', 'asc');
+                break;
+            case 'id_desc':
+            default:
+                $q->orderBy('id', 'desc');
+                break;
         }
 
         return $q->paginate($perPage);
@@ -77,6 +100,15 @@ class CustomerService
             $customer->total_spent = '0.00';
         }
         $customer->total_orders = max(0, $customer->total_orders - 1);
+        $customer->save();
+    }
+
+    public function subtractSpentOnly(Customer $customer, string $amount): void
+    {
+        $customer->total_spent = BcMath::sub((string) $customer->total_spent, $amount, 2);
+        if (BcMath::comp((string) $customer->total_spent, '0.00', 2) < 0) {
+            $customer->total_spent = '0.00';
+        }
         $customer->save();
     }
 

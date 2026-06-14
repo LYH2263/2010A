@@ -244,10 +244,11 @@ class OrderService
         }
 
         $oldStatus = $order->status;
-        $shouldAddStats = in_array($status, [Order::STATUS_PAID, Order::STATUS_COMPLETED])
-            && !in_array($oldStatus, [Order::STATUS_PAID, Order::STATUS_COMPLETED]);
-        $shouldSubtractStats = $status === Order::STATUS_CANCELLED
-            && in_array($oldStatus, [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_COMPLETED]);
+        $countedStatuses = [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_COMPLETED];
+        $oldCounted = in_array($oldStatus, $countedStatuses, true);
+        $newCounted = in_array($status, $countedStatuses, true);
+        $shouldAddStats = (!$oldCounted && $newCounted);
+        $shouldSubtractStats = ($oldCounted && !$newCounted);
 
         if ($status === Order::STATUS_CANCELLED && $order->status !== Order::STATUS_CANCELLED) {
             DB::transaction(function () use ($order) {
