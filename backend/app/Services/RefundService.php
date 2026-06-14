@@ -20,11 +20,15 @@ class RefundService
         private CouponService $couponService,
         private CustomerService $customerService
     ) {}
-    public function list(int $perPage = 15, ?string $status = null, ?int $orderId = null): LengthAwarePaginator
+    public function list(int $perPage = 15, string|array|null $status = null, ?int $orderId = null): LengthAwarePaginator
     {
         $q = Refund::with(['order', 'items'])->orderBy('id', 'desc');
-        if ($status !== null && $status !== '') {
-            $q->where('status', $status);
+        if ($status !== null && $status !== '' && $status !== []) {
+            $statuses = is_array($status) ? $status : [$status];
+            $statuses = array_values(array_filter($statuses, fn ($s) => in_array($s, [Refund::STATUS_PENDING, Refund::STATUS_APPROVED, Refund::STATUS_REJECTED, Refund::STATUS_COMPLETED], true)));
+            if (!empty($statuses)) {
+                $q->whereIn('status', $statuses);
+            }
         }
         if ($orderId !== null) {
             $q->where('order_id', $orderId);

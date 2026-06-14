@@ -16,6 +16,8 @@ class RefundItem extends Model
         'sku_specs' => 'array',
     ];
 
+    protected $appends = ['spec_text'];
+
     public function refund(): BelongsTo
     {
         return $this->belongsTo(Refund::class);

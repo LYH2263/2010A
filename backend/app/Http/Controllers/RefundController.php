@@ -21,20 +21,28 @@ class RefundController extends Controller
         $perPage = min((int) $request->query('per_page', 15), 50);
         $status = $request->query('status');
         $orderId = $request->query('order_id');
+        $statusFilter = null;
         if ($status !== null && $status !== '') {
-            $status = in_array($status, [Refund::STATUS_PENDING, Refund::STATUS_APPROVED, Refund::STATUS_REJECTED, Refund::STATUS_COMPLETED], true) ? $status : null;
+            $status = (string) $status;
+            if ($status === 'done') {
+                $statusFilter = [Refund::STATUS_APPROVED, Refund::STATUS_COMPLETED];
+            } elseif (in_array($status, [Refund::STATUS_PENDING, Refund::STATUS_APPROVED, Refund::STATUS_REJECTED, Refund::STATUS_COMPLETED], true)) {
+                $statusFilter = $status;
+            }
         }
         if ($orderId !== null && $orderId !== '') {
             $orderId = (int) $orderId;
         } else {
             $orderId = null;
         }
-        $refunds = $this->refundService->list($perPage, $status ?? null, $orderId);
+        $refunds = $this->refundService->list($perPage, $statusFilter, $orderId);
         $payload = $refunds->toArray();
-        $payload['refund_counts'] = Refund::selectRaw('status, count(*) as count')
+        $countsRaw = Refund::selectRaw('status, count(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status')
             ->toArray();
+        $countsRaw['done'] = (int) ($countsRaw[Refund::STATUS_APPROVED] ?? 0) + (int) ($countsRaw[Refund::STATUS_COMPLETED] ?? 0);
+        $payload['refund_counts'] = $countsRaw;
         return response()->json($payload);
     }
 

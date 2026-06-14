@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class OrderItem extends Model
 {
     protected $fillable = [
-        'product_id', 'product_sku_id', 'warehouse_id', 'product_name', 'sku_code', 'sku_specs', 'price', 'quantity', 'subtotal'
+        'order_id', 'product_id', 'product_sku_id', 'warehouse_id', 'product_name', 'sku_code', 'sku_specs', 'price', 'quantity', 'subtotal'
     ];
 
     protected $casts = [
@@ -17,6 +17,8 @@ class OrderItem extends Model
         'subtotal' => 'decimal:2',
         'sku_specs' => 'array',
     ];
+
+    protected $appends = ['spec_text'];
 
     public function order(): BelongsTo
     {
@@ -37,7 +39,6 @@ class OrderItem extends Model
     {
         return $this->belongsTo(Warehouse::class);
     }
-}
 
     public function getSpecTextAttribute(): string
     {

@@ -6,7 +6,7 @@ import { useToast } from '../contexts/ToastContext'
 import { useConfirmDialog } from '../contexts/ConfirmDialogContext'
 
 const refundStateMap = { pending: '待审核', approved: '已通过', rejected: '已拒绝', completed: '已完成' }
-const refundStateClass = { pending: 'bg-amber-100 text-amber-800', approved: 'bg-blue-100 text-blue-800', rejected: 'bg-gray-100 text-gray-600', completed: 'bg-emerald-100 text-emerald-800' }
+const refundStateClass = { pending: 'bg-amber-100 text-amber-800', approved: 'bg-emerald-100 text-emerald-800', rejected: 'bg-gray-100 text-gray-600', completed: 'bg-emerald-100 text-emerald-800' }
 const PER_PAGE = 15
 
 export default function RefundList() {
@@ -101,9 +101,9 @@ export default function RefundList() {
           <p className="text-gray-500 text-xs">待审核</p>
           <p className="text-lg font-bold text-amber-700">{counts.pending || 0}</p>
         </button>
-        <button type="button" onClick={() => { setStatusFilter('approved'); setPage(1) }} className={`rounded-xl p-4 text-left border ${statusFilter === 'approved' ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
-          <p className="text-gray-500 text-xs">已通过</p>
-          <p className="text-lg font-bold text-blue-700">{(counts.approved || 0) + (counts.completed || 0)}</p>
+        <button type="button" onClick={() => { setStatusFilter('done'); setPage(1) }} className={`rounded-xl p-4 text-left border ${statusFilter === 'done' ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+          <p className="text-gray-500 text-xs">已完成</p>
+          <p className="text-lg font-bold text-emerald-700">{counts.done ?? ((counts.approved || 0) + (counts.completed || 0))}</p>
         </button>
         <button type="button" onClick={() => { setStatusFilter('rejected'); setPage(1) }} className={`rounded-xl p-4 text-left border ${statusFilter === 'rejected' ? 'border-gray-400 bg-gray-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
           <p className="text-gray-500 text-xs">已拒绝</p>
