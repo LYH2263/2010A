@@ -43,7 +43,7 @@ class SalesReportController extends Controller
                 ->groupBy('order_id');
 
             $trendRaw = DB::table('orders as o')
-                ->leftJoinSub($refundSubquery, 'r', 'o.id = r.order_id')
+                ->leftJoinSub($refundSubquery, 'r', 'o.id', '=', 'r.order_id')
                 ->whereIn('o.status', self::REVENUE_STATUSES)
                 ->whereBetween('o.created_at', [$start, $end])
                 ->select([
@@ -308,7 +308,7 @@ class SalesReportController extends Controller
                 $lines[] = $this->csvEscape(['—', '—', '暂无数据', '0.00', '0', '0.00']);
             }
 
-            $csv = "\xEF\xBB\xBF" . implode("\r\n", $lines) . "\r\n";
+            $csv = "\xEF\xBB\xBF" . implode("\r\n", array_map(fn ($l) => is_array($l) ? '' : $l, $lines)) . "\r\n";
 
             return response($csv, 200, [
                 'Content-Type' => 'text/csv; charset=UTF-8',
