@@ -13,6 +13,8 @@ class ProductSku extends Model
         'product_id', 'sku', 'price', 'stock', 'is_default', 'alert_threshold'
     ];
 
+    protected $appends = ['spec_text', 'spec_array'];
+
     protected $casts = [
         'price' => 'decimal:2',
         'stock' => 'integer',

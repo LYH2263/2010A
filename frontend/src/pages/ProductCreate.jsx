@@ -121,6 +121,13 @@ export default function ProductCreate() {
         return
       }
 
+      const skuCodes = validSkus.map(s => s.sku.trim())
+      const dupCodes = skuCodes.filter((c, i) => skuCodes.indexOf(c) !== i)
+      if (dupCodes.length > 0) {
+        showToast(`SKU 编码「${[...new Set(dupCodes)].join('、')}」重复，请修改后重试`)
+        return
+      }
+
       const payload = {
         name: form.name,
         sku: form.sku,

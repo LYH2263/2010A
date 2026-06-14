@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useLocation, Link } from 'react-router-dom'
 import { getProduct, updateProduct } from '../api'
 import { getCategoriesAll } from '../api'
@@ -53,6 +53,7 @@ export default function ProductEdit() {
   const [specs, setSpecs] = useState([])
   const [skus, setSkus] = useState([])
   const [images, setImages] = useState([])
+  const skipMatrixRegen = useRef(false)
 
   const load = () => Promise.all([getProduct(id), getCategoriesAll()])
     .then(([p, cats]) => {
@@ -66,11 +67,19 @@ export default function ProductEdit() {
           name: s.name,
           values: s.values ? s.values.map(v => v.value) : [],
         })))
+        skipMatrixRegen.current = true
         setSkus(p.skus.map(sku => {
           const specValues = {}
-          if (sku.spec_values) {
+          if (Array.isArray(sku.spec_values)) {
+            sku.spec_values.forEach(sv => {
+              const specName = sv.spec?.name
+              if (specName) specValues[specName] = sv.value
+            })
+          } else if (sku.spec_array && typeof sku.spec_array === 'object') {
+            Object.assign(specValues, sku.spec_array)
+          } else if (sku.spec_values && typeof sku.spec_values === 'object') {
             Object.assign(specValues, sku.spec_values)
-          } else if (sku.specValues) {
+          } else if (Array.isArray(sku.specValues)) {
             sku.specValues.forEach(sv => {
               const specName = sv.spec?.name
               if (specName) specValues[specName] = sv.value
@@ -78,9 +87,9 @@ export default function ProductEdit() {
           }
           return {
             id: sku.id,
-            sku: sku.sku,
-            price: sku.price,
-            stock: sku.stock,
+            sku: sku.sku || '',
+            price: sku.price ?? '',
+            stock: sku.stock ?? 0,
             alert_threshold: sku.alert_threshold !== null && sku.alert_threshold !== undefined ? String(sku.alert_threshold) : '',
             spec_values: specValues,
           }
@@ -114,6 +123,10 @@ export default function ProductEdit() {
   useEffect(() => { load() }, [id])
 
   useEffect(() => {
+    if (skipMatrixRegen.current) {
+      skipMatrixRegen.current = false
+      return
+    }
     if (hasSpecs && specs.length > 0) {
       const matrix = generateSkuMatrix(specs)
       const merged = matrix.map(m => {
@@ -187,6 +200,13 @@ export default function ProductEdit() {
       const emptyStockSkus = validSkus.filter(s => s.stock === '' || s.stock === null || s.stock === undefined)
       if (emptyStockSkus.length > 0) {
         showToast('请填写所有 SKU 的库存')
+        return
+      }
+
+      const skuCodes = validSkus.map(s => s.sku.trim())
+      const dupCodes = skuCodes.filter((c, i) => skuCodes.indexOf(c) !== i)
+      if (dupCodes.length > 0) {
+        showToast(`SKU 编码「${[...new Set(dupCodes)].join('、')}」重复，请修改后重试`)
         return
       }
 

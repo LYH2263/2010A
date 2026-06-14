@@ -6,10 +6,17 @@ import { useToast } from '../contexts/ToastContext'
 function getSpecText(sku) {
   if (!sku) return ''
   if (sku.spec_text) return sku.spec_text
-  if (sku.spec_values) {
+  if (Array.isArray(sku.spec_values)) {
+    return sku.spec_values.map(sv => {
+      const name = sv.spec?.name || ''
+      const value = sv.value || ''
+      return name ? `${name}: ${value}` : value
+    }).filter(Boolean).join(' / ')
+  }
+  if (sku.spec_values && typeof sku.spec_values === 'object') {
     return Object.entries(sku.spec_values).map(([k, v]) => `${k}: ${v}`).join(' / ')
   }
-  if (sku.specValues && Array.isArray(sku.specValues)) {
+  if (Array.isArray(sku.specValues)) {
     return sku.specValues.map(sv => `${sv.spec?.name}: ${sv.value}`).filter(Boolean).join(' / ')
   }
   return ''

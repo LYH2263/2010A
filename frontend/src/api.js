@@ -82,6 +82,10 @@ export async function createProduct(data) {
   if (!r.ok) {
     if (r.status === 401) throw new Error('UNAUTHORIZED');
     const j = await r.json().catch(() => ({}));
+    if (j.errors) {
+      const msgs = Object.values(j.errors).flat().join('；');
+      throw new Error(msgs);
+    }
     throw new Error(j.message || await r.text());
   }
   return r.status === 204 ? null : r.json();
@@ -97,6 +101,10 @@ export async function updateProduct(id, data) {
   if (!r.ok) {
     if (r.status === 401) throw new Error('UNAUTHORIZED');
     const j = await r.json().catch(() => ({}));
+    if (j.errors) {
+      const msgs = Object.values(j.errors).flat().join('；');
+      throw new Error(msgs);
+    }
     throw new Error(j.message || await r.text());
   }
   return r.status === 204 ? null : r.json();
