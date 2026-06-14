@@ -49,4 +49,20 @@ class Warehouse extends Model
         $warehouse = self::getDefaultWarehouse();
         return $warehouse?->id;
     }
+
+    public static function ensureDefaultWarehouse(): self
+    {
+        $warehouse = self::default()->first();
+        if ($warehouse) {
+            return $warehouse;
+        }
+
+        return self::create([
+            'name' => '默认仓库',
+            'code' => 'DEFAULT',
+            'address' => '系统默认仓库',
+            'status' => self::STATUS_ACTIVE,
+            'is_default' => true,
+        ]);
+    }
 }

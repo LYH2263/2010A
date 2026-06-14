@@ -92,21 +92,30 @@ class OrderService
 
                 $warehouseId = $row['warehouse_id'] ?? $defaultWarehouseId;
                 if ($warehouseId === null) {
-                    $warehouseId = \App\Models\Warehouse::getDefaultWarehouseId();
-                }
-                if (!$warehouseId) {
-                    throw new \InvalidArgumentException('未找到可用仓库');
+                    $defaultW = \App\Models\Warehouse::ensureDefaultWarehouse();
+                    $warehouseId = $defaultW->id;
                 }
 
                 $stock = \App\Models\ProductStock::where('product_sku_id', $sku->id)
                     ->where('warehouse_id', $warehouseId)
                     ->first();
 
+                if (!$stock) {
+                    $skuStock = (int) $sku->stock;
+                    $stock = \App\Models\ProductStock::create([
+                        'product_id' => $sku->product_id,
+                        'product_sku_id' => $sku->id,
+                        'warehouse_id' => $warehouseId,
+                        'stock' => $skuStock,
+                        'reserved_stock' => 0,
+                    ]);
+                }
+
                 $warehouse = \App\Models\Warehouse::find($warehouseId);
                 $warehouseName = $warehouse?->name ?? '未知仓库';
 
-                if (!$stock || $stock->stock < $qty) {
-                    $availableStock = $stock?->stock ?? 0;
+                if ($stock->stock < $qty) {
+                    $availableStock = $stock->stock;
                     $specText = $sku->spec_text ? "（{$sku->spec_text}）" : '';
                     throw new \InvalidArgumentException("【{$warehouseName}】商品【{$product->name}{$specText}】库存不足，当前：{$availableStock}");
                 }

@@ -95,7 +95,8 @@ class InventoryService
             $warehouseId = Warehouse::getDefaultWarehouseId();
         }
         if (!$warehouseId) {
-            throw new \InvalidArgumentException('未找到可用仓库');
+            $defaultWarehouse = Warehouse::ensureDefaultWarehouse();
+            $warehouseId = $defaultWarehouse->id;
         }
 
         $result = DB::transaction(function () use ($product, $delta, $sourceType, $context, $warehouseId) {
@@ -174,7 +175,8 @@ class InventoryService
             $warehouseId = Warehouse::getDefaultWarehouseId();
         }
         if (!$warehouseId) {
-            throw new \InvalidArgumentException('未找到可用仓库');
+            $defaultWarehouse = Warehouse::ensureDefaultWarehouse();
+            $warehouseId = $defaultWarehouse->id;
         }
 
         $result = DB::transaction(function () use ($sku, $delta, $sourceType, $context, $warehouseId) {

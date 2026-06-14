@@ -156,6 +156,7 @@ class ProductService
                 $product->specs()->delete();
                 $product->skus()->delete();
                 $this->syncSpecsAndSkus($product, $data['specs'], $data['skus']);
+                $this->initializeProductStocks($product);
 
                 foreach ($product->fresh()->skus as $sku) {
                     $skuData = collect($data['skus'])->firstWhere('sku', $sku->sku);
@@ -180,12 +181,7 @@ class ProductService
                         $this->syncAndRecordSkuStockChange($defaultSku, $skuDelta, '编辑商品更新库存');
                     }
                 } else {
-                    $productDelta = $newStock - $oldProductStock;
-                    if ($productDelta !== 0) {
-                        $this->syncAndRecordProductStockChange($product, $productDelta, '编辑商品更新库存');
-                    }
-
-                    ProductSku::create([
+                    $newSku = ProductSku::create([
                         'product_id' => $product->id,
                         'sku' => $product->sku,
                         'price' => $product->price,
@@ -193,6 +189,12 @@ class ProductService
                         'is_default' => true,
                         'alert_threshold' => $product->alert_threshold,
                     ]);
+                    $this->initializeProductStocks($product);
+
+                    $productDelta = $newStock - $oldProductStock;
+                    if ($productDelta !== 0) {
+                        $this->syncAndRecordProductStockChange($product, $productDelta, '编辑商品更新库存');
+                    }
                 }
             }
 
@@ -208,27 +210,49 @@ class ProductService
     protected function initializeProductStocks(Product $product): void
     {
         $warehouses = Warehouse::active()->get();
-        foreach ($warehouses as $warehouse) {
-            foreach ($product->skus as $sku) {
-                ProductStock::firstOrCreate([
-                    'product_id' => $product->id,
-                    'product_sku_id' => $sku->id,
-                    'warehouse_id' => $warehouse->id,
-                ], [
-                    'stock' => $sku->stock,
-                    'reserved_stock' => 0,
-                ]);
-            }
 
-            if ($product->skus->isEmpty()) {
-                ProductStock::firstOrCreate([
-                    'product_id' => $product->id,
-                    'product_sku_id' => null,
-                    'warehouse_id' => $warehouse->id,
-                ], [
-                    'stock' => $product->stock,
-                    'reserved_stock' => 0,
-                ]);
+        if ($warehouses->isEmpty()) {
+            $defaultWarehouse = Warehouse::firstOrCreate(
+                ['is_default' => true],
+                [
+                    'name' => '默认仓库',
+                    'code' => 'DEFAULT',
+                    'address' => '系统默认仓库',
+                    'status' => Warehouse::STATUS_ACTIVE,
+                ]
+            );
+            $warehouses = collect([$defaultWarehouse]);
+        }
+
+        $skus = $product->skus()->get();
+
+        foreach ($warehouses as $warehouse) {
+            if ($skus->isNotEmpty()) {
+                foreach ($skus as $sku) {
+                    ProductStock::firstOrCreate(
+                        [
+                            'product_id' => $product->id,
+                            'product_sku_id' => $sku->id,
+                            'warehouse_id' => $warehouse->id,
+                        ],
+                        [
+                            'stock' => (int) $sku->stock,
+                            'reserved_stock' => 0,
+                        ]
+                    );
+                }
+            } else {
+                ProductStock::firstOrCreate(
+                    [
+                        'product_id' => $product->id,
+                        'product_sku_id' => null,
+                        'warehouse_id' => $warehouse->id,
+                    ],
+                    [
+                        'stock' => (int) $product->stock,
+                        'reserved_stock' => 0,
+                    ]
+                );
             }
         }
     }
