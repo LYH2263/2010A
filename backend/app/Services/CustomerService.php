@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\Order;
+use App\Support\BcMath;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -64,15 +65,15 @@ class CustomerService
 
     public function addOrderStats(Customer $customer, string $amount): void
     {
-        $customer->total_spent = bcadd((string) $customer->total_spent, $amount, 2);
+        $customer->total_spent = BcMath::add((string) $customer->total_spent, $amount, 2);
         $customer->total_orders = $customer->total_orders + 1;
         $customer->save();
     }
 
     public function subtractOrderStats(Customer $customer, string $amount): void
     {
-        $customer->total_spent = bcsub((string) $customer->total_spent, $amount, 2);
-        if (bccomp((string) $customer->total_spent, '0.00', 2) < 0) {
+        $customer->total_spent = BcMath::sub((string) $customer->total_spent, $amount, 2);
+        if (BcMath::comp((string) $customer->total_spent, '0.00', 2) < 0) {
             $customer->total_spent = '0.00';
         }
         $customer->total_orders = max(0, $customer->total_orders - 1);

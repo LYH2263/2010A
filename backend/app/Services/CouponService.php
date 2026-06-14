@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\OrderCoupon;
-use App\Models\OrderItem;
+use App\Support\BcMath;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -128,8 +128,8 @@ class CouponService
                 continue;
             }
 
-            $subtotal = bcmul((string) $sku->price, (string) $qty, self::SCALE);
-            $originalTotal = bcadd($originalTotal, $subtotal, self::SCALE);
+            $subtotal = BcMath::mul((string) $sku->price, (string) $qty, self::SCALE);
+            $originalTotal = BcMath::add($originalTotal, $subtotal, self::SCALE);
 
             $categoryId = $product->category_id;
             if ($coupon->isCategoryAllowed($categoryId)) {
@@ -137,22 +137,22 @@ class CouponService
                     'product_id' => $productId,
                     'subtotal' => $subtotal,
                 ];
-                $applicableTotal = bcadd($applicableTotal, $subtotal, self::SCALE);
+                $applicableTotal = BcMath::add($applicableTotal, $subtotal, self::SCALE);
             }
         }
 
-        if (bccomp($applicableTotal, '0.00', self::SCALE) <= 0) {
+        if (BcMath::comp($applicableTotal, '0.00', self::SCALE) <= 0) {
             return ['valid' => false, 'message' => '当前订单中没有适用该优惠券的商品'];
         }
 
-        if (bccomp($applicableTotal, (string) $coupon->min_amount, self::SCALE) < 0) {
-            $diff = bcsub((string) $coupon->min_amount, $applicableTotal, self::SCALE);
+        if (BcMath::comp($applicableTotal, (string) $coupon->min_amount, self::SCALE) < 0) {
+            $diff = BcMath::sub((string) $coupon->min_amount, $applicableTotal, self::SCALE);
             return ['valid' => false, 'message' => "适用商品金额不足，还差 ¥{$diff}"];
         }
 
         $discountAmount = $this->calculateDiscount($coupon, $applicableTotal);
-        $payableAmount = bcsub($originalTotal, $discountAmount, self::SCALE);
-        if (bccomp($payableAmount, '0.00', self::SCALE) < 0) {
+        $payableAmount = BcMath::sub($originalTotal, $discountAmount, self::SCALE);
+        if (BcMath::comp($payableAmount, '0.00', self::SCALE) < 0) {
             $payableAmount = '0.00';
             $discountAmount = $originalTotal;
         }
@@ -180,7 +180,7 @@ class CouponService
     {
         if ($coupon->type === Coupon::TYPE_FIXED) {
             $discount = (string) $coupon->value;
-            if (bccomp($discount, $applicableTotal, self::SCALE) > 0) {
+            if (BcMath::comp($discount, $applicableTotal, self::SCALE) > 0) {
                 $discount = $applicableTotal;
             }
             return $this->formatDecimal($discount);
@@ -194,9 +194,10 @@ class CouponService
             if ($percent >= 100) {
                 return $this->formatDecimal($applicableTotal);
             }
-            $raw = bcmul($applicableTotal, (string) ($percent / 100), 4);
-            $discount = $this->roundDown($raw, self::SCALE);
-            if (bccomp($discount, $applicableTotal, self::SCALE) > 0) {
+            $rate = (string) ($percent / 100);
+            $raw = BcMath::mul($applicableTotal, $rate, 4);
+            $discount = BcMath::floor($raw, self::SCALE);
+            if (BcMath::comp($discount, $applicableTotal, self::SCALE) > 0) {
                 $discount = $applicableTotal;
             }
             return $this->formatDecimal($discount);
@@ -254,15 +255,15 @@ class CouponService
             ->get();
 
         foreach ($orderCoupons as $oc) {
-            $toRelease = bcmul((string) $oc->discount_amount, $refundRatio, 4);
-            $toRelease = $this->roundDown($toRelease, self::SCALE);
+            $toRelease = BcMath::mul((string) $oc->discount_amount, $refundRatio, 4);
+            $toRelease = BcMath::floor($toRelease, self::SCALE);
 
-            if (bccomp($toRelease, '0.00', self::SCALE) <= 0) {
+            if (BcMath::comp($toRelease, '0.00', self::SCALE) <= 0) {
                 continue;
             }
 
-            $newReleased = bcadd((string) $oc->released_amount, $toRelease, self::SCALE);
-            $isFullRelease = bccomp($newReleased, (string) $oc->discount_amount, self::SCALE) >= 0;
+            $newReleased = BcMath::add((string) $oc->released_amount, $toRelease, self::SCALE);
+            $isFullRelease = BcMath::comp($newReleased, (string) $oc->discount_amount, self::SCALE) >= 0;
 
             if ($isFullRelease) {
                 $this->decrementUsed($oc->coupon_id, 1);
@@ -286,32 +287,9 @@ class CouponService
             ->update(['used_quantity' => DB::raw("used_quantity - {$count}")]);
     }
 
-    private function incrementUsed(int $couponId, int $count): void
-    {
-        Coupon::where('id', $couponId)
-            ->where(DB::raw('used_quantity + ' . $count), '<=', DB::raw('total_quantity'))
-            ->update(['used_quantity' => DB::raw("used_quantity + {$count}")]);
-    }
-
     private function formatDecimal($value): string
     {
-        return number_format((float) $value, self::SCALE, '.', '');
-    }
-
-    private function roundDown(string $value, int $scale): string
-    {
-        $pos = strpos($value, '.');
-        if ($pos === false) {
-            return $value . '.' . str_repeat('0', $scale);
-        }
-        $intPart = substr($value, 0, $pos);
-        $fracPart = substr($value, $pos + 1);
-        if (strlen($fracPart) <= $scale) {
-            $fracPart = str_pad($fracPart, $scale, '0');
-        } else {
-            $fracPart = substr($fracPart, 0, $scale);
-        }
-        return $intPart . '.' . $fracPart;
+        return BcMath::format($value, self::SCALE);
     }
 
     private function resolveSkuForItem(\App\Models\Product $product, array $row): ?\App\Models\ProductSku
@@ -340,7 +318,7 @@ class CouponService
                 continue;
             }
             if ($coupon->isCategoryAllowed((int) $product->category_id)) {
-                $total = bcadd($total, (string) $item->subtotal, self::SCALE);
+                $total = BcMath::add($total, (string) $item->subtotal, self::SCALE);
             }
         }
         return $total;

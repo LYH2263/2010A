@@ -10,6 +10,7 @@ use App\Models\RefundItem;
 use App\Models\Product;
 use App\Models\ProductSku;
 use App\Models\StockMovement;
+use App\Support\BcMath;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -96,8 +97,8 @@ class RefundService
                     throw new \InvalidArgumentException("商品【{$orderItem->product_name}】可退数量为 {$remainingQty}，申请数量超出");
                 }
 
-                $subtotal = bcmul((string) $orderItem->price, (string) $qty, 2);
-                $totalRefundAmount = bcadd($totalRefundAmount, $subtotal, 2);
+                $subtotal = BcMath::mul((string) $orderItem->price, (string) $qty, 2);
+                $totalRefundAmount = BcMath::add($totalRefundAmount, $subtotal, 2);
 
                 $refundItems[] = [
                     'order_item_id' => $orderItem->id,
@@ -210,9 +211,9 @@ class RefundService
             $lockedRefund->update(['status' => Refund::STATUS_COMPLETED]);
 
             $orderOriginalAmount = (string) $lockedRefund->order->original_amount;
-            if (bccomp($orderOriginalAmount, '0.00', 2) > 0) {
-                $refundRatio = bcdiv((string) $lockedRefund->refund_amount, $orderOriginalAmount, 4);
-                if (bccomp($refundRatio, '0', 4) > 0) {
+            if (BcMath::comp($orderOriginalAmount, '0.00', 2) > 0) {
+                $refundRatio = BcMath::div((string) $lockedRefund->refund_amount, $orderOriginalAmount, 4);
+                if (BcMath::comp($refundRatio, '0', 4) > 0) {
                     $this->couponService->partialRelease($lockedRefund->order, $refundRatio);
                 }
             }

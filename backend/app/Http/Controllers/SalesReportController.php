@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Refund;
+use App\Support\BcMath;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -79,7 +80,7 @@ class SalesReportController extends Controller
                 $revenue = $row ? number_format((float) $row->revenue, 2, '.', '') : '0.00';
                 $allOrderCount = (int) ($allOrdersTrendRaw[$key] ?? 0);
 
-                $aov = $orderCount > 0 ? number_format((float) bcdiv($revenue, (string) $orderCount, 2), 2, '.', '') : '0.00';
+                $aov = $orderCount > 0 ? BcMath::div($revenue, (string) $orderCount, 2) : '0.00';
 
                 $trendData[] = [
                     'period_key' => $key,
@@ -90,7 +91,7 @@ class SalesReportController extends Controller
                     'aov' => round((float) $aov, 2),
                 ];
 
-                $revenueTotal = bcadd($revenueTotal, $revenue, 2);
+                $revenueTotal = BcMath::add($revenueTotal, $revenue, 2);
                 $orderCountTotal += $orderCount;
                 $allOrderCountTotal += $allOrderCount;
             }
@@ -140,12 +141,12 @@ class SalesReportController extends Controller
 
                 $categoryTotal = '0.00';
                 foreach ($categoryRaw as $r) {
-                    $categoryTotal = bcadd($categoryTotal, (string) $r->sales_amount, 2);
+                    $categoryTotal = BcMath::add($categoryTotal, (string) $r->sales_amount, 2);
                 }
 
                 $categoryTop = $categoryRaw->map(function ($r, $i) use ($categoryTotal) {
-                    $ratio = bccomp($categoryTotal, '0.00', 2) > 0
-                        ? (float) bcdiv((string) $r->sales_amount, $categoryTotal, 4) * 100
+                    $ratio = BcMath::comp($categoryTotal, '0.00', 2) > 0
+                        ? (float) BcMath::div((string) $r->sales_amount, $categoryTotal, 4) * 100
                         : 0;
                     return [
                         'rank' => $i + 1,
@@ -190,7 +191,7 @@ class SalesReportController extends Controller
             }
 
             $overallAov = $orderCountTotal > 0
-                ? round((float) bcdiv($revenueTotal, (string) $orderCountTotal, 2), 2)
+                ? (float) BcMath::div($revenueTotal, (string) $orderCountTotal, 2)
                 : 0;
 
             $summary = [

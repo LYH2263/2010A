@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\ProductSku;
 use App\Models\StockMovement;
 use App\Models\Coupon;
+use App\Support\BcMath;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -110,8 +111,8 @@ class OrderService
                     throw new \InvalidArgumentException("【{$warehouseName}】商品【{$product->name}{$specText}】库存不足，当前：{$availableStock}");
                 }
 
-                $subtotal = bcmul((string) $sku->price, (string) $qty, self::SCALE);
-                $originalTotal = bcadd($originalTotal, $subtotal, self::SCALE);
+                $subtotal = BcMath::mul((string) $sku->price, (string) $qty, self::SCALE);
+                $originalTotal = BcMath::add($originalTotal, $subtotal, self::SCALE);
 
                 $skuSpecs = [];
                 foreach ($sku->specValues as $sv) {
@@ -172,8 +173,8 @@ class OrderService
                 $redeemedCoupon = $coupon;
             }
 
-            $payableAmount = bcsub($originalTotal, $discountAmount, self::SCALE);
-            if (bccomp($payableAmount, '0.00', self::SCALE) < 0) {
+            $payableAmount = BcMath::sub($originalTotal, $discountAmount, self::SCALE);
+            if (BcMath::comp($payableAmount, '0.00', self::SCALE) < 0) {
                 $payableAmount = '0.00';
             }
 

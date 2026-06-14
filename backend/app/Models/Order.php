@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Support\BcMath;
 
 class Order extends Model
 {
@@ -60,7 +61,7 @@ class Order extends Model
             $totalRefunded += (float) $refund->refund_amount;
         }
 
-        if (bccomp((string) $totalRefunded, (string) $this->total_amount, 2) >= 0) {
+        if (BcMath::comp((string) $totalRefunded, (string) $this->total_amount, 2) >= 0) {
             return self::REFUND_FULL;
         }
 

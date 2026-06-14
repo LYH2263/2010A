@@ -10,6 +10,7 @@ use App\Models\Refund;
 use App\Models\Warehouse;
 use App\Services\NotificationService;
 use App\Services\WarehouseService;
+use App\Support\BcMath;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -43,9 +44,9 @@ class DashboardController extends Controller
             $totalAmount = '0.00';
             foreach ($paidOrders as $order) {
                 $orderRefunded = $order->total_refunded_amount;
-                $net = bcsub((string) $order->total_amount, (string) $orderRefunded, 2);
-                if (bccomp($net, '0.00', 2) > 0) {
-                    $totalAmount = bcadd($totalAmount, $net, 2);
+                $net = BcMath::sub((string) $order->total_amount, (string) $orderRefunded, 2);
+                if (BcMath::comp($net, '0.00', 2) > 0) {
+                    $totalAmount = BcMath::add($totalAmount, $net, 2);
                 }
             }
 
@@ -101,9 +102,9 @@ class DashboardController extends Controller
                     $amount = '0.00';
                     foreach ($rows as $o) {
                         if (in_array($o->status, [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_COMPLETED], true)) {
-                            $net = bcsub((string) $o->total_amount, (string) $o->total_refunded_amount, 2);
-                            if (bccomp($net, '0.00', 2) > 0) {
-                                $amount = bcadd($amount, $net, 2);
+                            $net = BcMath::sub((string) $o->total_amount, (string) $o->total_refunded_amount, 2);
+                            if (BcMath::comp($net, '0.00', 2) > 0) {
+                                $amount = BcMath::add($amount, $net, 2);
                             }
                         }
                     }
