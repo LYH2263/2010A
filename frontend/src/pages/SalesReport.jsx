@@ -5,6 +5,7 @@ import {
 } from 'recharts'
 import { getSalesReport, exportSalesReportUrl } from '../api'
 import { useToast } from '../contexts/ToastContext'
+import { useConfirmDialog } from '../contexts/ConfirmDialogContext'
 
 const STATUS_PIE_COLORS = {
   pending: '#f59e0b',
@@ -35,6 +36,7 @@ function endOfMonth(d) {
 
 export default function SalesReport() {
   const { showToast } = useToast()
+  const { confirm } = useConfirmDialog()
   const today = new Date()
   const defaultStart = fmtYMD(addDays(today, -29))
   const defaultEnd = fmtYMD(today)
@@ -45,6 +47,7 @@ export default function SalesReport() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [loadingStartTime, setLoadingStartTime] = useState(null)
   const exportIframeRef = useRef(null)
 
   const params = useMemo(() => ({
@@ -55,6 +58,7 @@ export default function SalesReport() {
 
   const load = () => {
     setLoading(true)
+    setLoadingStartTime(Date.now())
     setError(null)
     getSalesReport(params)
       .then(setData)
@@ -62,7 +66,10 @@ export default function SalesReport() {
         setError(e.message || '加载失败')
         showToast(e.message || '加载失败', 'error')
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        setLoadingStartTime(null)
+      })
   }
 
   useEffect(() => {
@@ -118,15 +125,40 @@ export default function SalesReport() {
       showToast('开始日期不能晚于结束日期', 'error')
       return false
     }
-    if ((e - s) / 86400000 > 400) {
-      showToast('查询跨度不得超过 400 天', 'error')
-      return false
-    }
     return true
   }
 
-  const handleApply = () => {
-    if (validateDates()) load()
+  const getSpanDays = () => {
+    const s = new Date(startDate), e = new Date(endDate)
+    return Math.ceil((e - s) / 86400000)
+  }
+
+  const handleApply = async () => {
+    if (!validateDates()) return
+    const spanDays = getSpanDays()
+    if (spanDays > 365 && grain === 'day') {
+      const ok = await confirm({
+        title: '查询区间较大',
+        message: `您选择了约 ${spanDays} 天的查询区间，且使用「按日」粒度，数据点较多可能导致图表拥挤、查询较慢。是否继续？\n\n建议：切换为「按周」或「按月」粒度可获得更清晰的趋势和更快的速度。`,
+        confirmText: '继续查询',
+        cancelText: '切换为按周',
+        tone: 'info',
+      })
+      if (!ok) {
+        setGrain('week')
+        return
+      }
+    } else if (spanDays > 730) {
+      const ok = await confirm({
+        title: '查询时间跨度较大',
+        message: `您选择了约 ${spanDays} 天（超过2年）的查询区间，统计将完整覆盖全部时间段，但查询可能需要稍长时间。是否继续？`,
+        confirmText: '继续查询',
+        cancelText: '取消',
+        tone: 'info',
+      })
+      if (!ok) return
+    }
+    load()
   }
 
   if (error && !data) {
@@ -143,6 +175,7 @@ export default function SalesReport() {
   const statusBreakdown = data?.status_breakdown || []
   const categoryTop = data?.category_top || []
   const productTop = data?.product_top || []
+  const warnings = data?.warnings || []
 
   const pieData = statusBreakdown.map((s) => ({ name: s.label, value: Number(s.count), status: s.status }))
   const statusTotalCount = pieData.reduce((a, b) => a + b.value, 0)
@@ -257,6 +290,34 @@ export default function SalesReport() {
           </div>
         </div>
       </div>
+
+      {warnings.length > 0 && (
+        <div className="space-y-2">
+          {warnings.map((w, i) => {
+            const isWarning = w.level === 'warning'
+            const bgCls = isWarning ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'
+            const textCls = isWarning ? 'text-amber-800' : 'text-blue-800'
+            const icon = isWarning ? '⚠️' : '💡'
+            return (
+              <div key={i} className={`${bgCls} border rounded-xl px-5 py-3.5 flex flex-wrap items-start gap-3`}>
+                <div className="flex-shrink-0 mt-0.5">{icon}</div>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-sm ${textCls} whitespace-pre-line leading-relaxed`}>{w.message}</div>
+                </div>
+                {w.type === 'grain_suggest' && w.suggest_grain && (
+                  <button
+                    type="button"
+                    onClick={() => { setGrain(w.suggest_grain) }}
+                    className="flex-shrink-0 px-3 py-1.5 text-sm font-medium bg-white rounded-lg border border-gray-200 text-primary hover:bg-primary-light hover:border-primary transition-colors"
+                  >
+                    切换为{w.suggest_grain === 'week' ? '按周' : '按月'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="营业额合计" value={'¥' + Number(summary.revenue_total ?? 0).toFixed(2)} hint="已付款/已发货/已完成 扣除退款" iconColor="bg-emerald-100 text-emerald-700" icon="¥" />

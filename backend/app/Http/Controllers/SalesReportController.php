@@ -68,6 +68,9 @@ class SalesReportController extends Controller
 
             $periods = $this->generatePeriods($start, $end, $grain);
 
+            $trendMap = $trendRaw->keyBy('period_key');
+            $allOrdersMap = $allOrdersTrendRaw;
+
             $revenueTotal = '0.00';
             $orderCountTotal = 0;
             $allOrderCountTotal = 0;
@@ -75,10 +78,10 @@ class SalesReportController extends Controller
             foreach ($periods as $p) {
                 $key = $p['key'];
                 $label = $p['label'];
-                $row = $trendRaw->firstWhere('period_key', $key);
+                $row = $trendMap->get($key);
                 $orderCount = $row ? (int) $row->order_count : 0;
                 $revenue = $row ? number_format((float) $row->revenue, 2, '.', '') : '0.00';
-                $allOrderCount = (int) ($allOrdersTrendRaw[$key] ?? 0);
+                $allOrderCount = (int) ($allOrdersMap[$key] ?? 0);
 
                 $aov = $orderCount > 0 ? BcMath::div($revenue, (string) $orderCount, 2) : '0.00';
 
@@ -204,12 +207,15 @@ class SalesReportController extends Controller
                 'aov' => $overallAov,
             ];
 
+            $warnings = $this->buildWarnings($start, $end, $grain);
+
             return response()->json([
                 'summary' => $summary,
                 'trend' => $trendData,
                 'status_breakdown' => $statusData,
                 'category_top' => $categoryTop,
                 'product_top' => $productTop,
+                'warnings' => $warnings,
             ]);
         } catch (\Exception $e) {
             Log::error('SalesReportController@index', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
@@ -309,7 +315,7 @@ class SalesReportController extends Controller
                 $lines[] = $this->csvEscape(['—', '—', '暂无数据', '0.00', '0', '0.00']);
             }
 
-            $csv = "\xEF\xBB\xBF" . implode("\r\n", array_map(fn ($l) => is_array($l) ? '' : $l, $lines)) . "\r\n";
+            $csv = "\xEF\xBB\xBF" . implode("\r\n", $lines) . "\r\n";
 
             return response($csv, 200, [
                 'Content-Type' => 'text/csv; charset=UTF-8',
@@ -350,12 +356,46 @@ class SalesReportController extends Controller
             [$start, $end] = [$end, $start];
         }
 
-        $maxDays = 400;
-        if ($start->diffInDays($end) > $maxDays) {
-            $start = $end->copy()->subDays($maxDays)->startOfDay();
+        return [$start, $end, $grain];
+    }
+
+    private function buildWarnings(Carbon $start, Carbon $end, string $grain): array
+    {
+        $warnings = [];
+        $days = $start->diffInDays($end);
+
+        if ($days > 730 && $grain === self::GRAIN_DAY) {
+            $warnings[] = [
+                'type' => 'grain_suggest',
+                'level' => 'warning',
+                'message' => "查询跨度约 {$days} 天（超过2年），日粒度数据点较多，建议切换为「按周」或「按月」查看以获得更好的性能与可读性。",
+                'suggest_grain' => self::GRAIN_MONTH,
+            ];
+        } elseif ($days > 365 && $grain === self::GRAIN_DAY) {
+            $warnings[] = [
+                'type' => 'grain_suggest',
+                'level' => 'info',
+                'message' => "查询跨度约 {$days} 天（超过1年），日粒度数据点较多，建议切换为「按周」查看以获得更好的可读性。",
+                'suggest_grain' => self::GRAIN_WEEK,
+            ];
+        } elseif ($days > 180 && $grain === self::GRAIN_DAY) {
+            $warnings[] = [
+                'type' => 'grain_suggest',
+                'level' => 'info',
+                'message' => "查询跨度约 {$days} 天，日粒度趋势图点较密集，可切换「按周」查看更清晰的趋势。",
+                'suggest_grain' => self::GRAIN_WEEK,
+            ];
         }
 
-        return [$start, $end, $grain];
+        if ($days > 730) {
+            $warnings[] = [
+                'type' => 'span_large',
+                'level' => 'info',
+                'message' => "您正在查询约 {$days} 天的历史数据（超过2年），统计已完整覆盖所选区间，查询可能需要稍长时间。",
+            ];
+        }
+
+        return $warnings;
     }
 
     private function dateSelect(string $grain, string $field): string
