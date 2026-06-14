@@ -1,10 +1,27 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getStockMovements, getProducts, getProduct } from '../api'
+import { getStockMovements, getProducts, getProduct, getWarehousesActive } from '../api'
 import Pagination from '../components/Pagination'
 import { useToast } from '../contexts/ToastContext'
 
 const PER_PAGE = 15
+
+function getSkuSpecText(sku) {
+  if (!sku) return ''
+  if (sku.spec_text) return sku.spec_text
+  if (sku.specValues && Array.isArray(sku.specValues)) {
+    return sku.specValues.map(sv => `${sv.spec?.name}: ${sv.value}`).filter(Boolean).join(' / ')
+  }
+  return ''
+}
+
+function formatDateTime(datetime) {
+  if (!datetime) return '-'
+  const d = new Date(datetime)
+  if (isNaN(d.getTime())) return datetime
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
 
 export default function StockMovementList() {
   const { productId } = useParams()
@@ -15,16 +32,19 @@ export default function StockMovementList() {
   const [err, setErr] = useState(null)
   const [page, setPage] = useState(1)
   const [products, setProducts] = useState([])
+  const [warehouses, setWarehouses] = useState([])
   const [product, setProduct] = useState(null)
   const [keyword, setKeyword] = useState('')
   const [filterProductId, setFilterProductId] = useState(productId || '')
   const [filterSkuId, setFilterSkuId] = useState(location.state?.sku_id || '')
+  const [warehouseId, setWarehouseId] = useState('')
   const [sourceType, setSourceType] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [appliedKeyword, setAppliedKeyword] = useState('')
   const [appliedProductId, setAppliedProductId] = useState(productId || '')
   const [appliedSkuId, setAppliedSkuId] = useState(location.state?.sku_id || '')
+  const [appliedWarehouseId, setAppliedWarehouseId] = useState('')
   const [appliedSourceType, setAppliedSourceType] = useState('')
   const [appliedDateFrom, setAppliedDateFrom] = useState('')
   const [appliedDateTo, setAppliedDateTo] = useState('')
@@ -34,6 +54,7 @@ export default function StockMovementList() {
     if (appliedKeyword) params.keyword = appliedKeyword
     if (appliedProductId) params.product_id = appliedProductId
     if (appliedSkuId) params.product_sku_id = appliedSkuId
+    if (appliedWarehouseId) params.warehouse_id = appliedWarehouseId
     if (appliedSourceType) params.source_type = appliedSourceType
     if (appliedDateFrom) params.date_from = appliedDateFrom
     if (appliedDateTo) params.date_to = appliedDateTo
@@ -48,18 +69,23 @@ export default function StockMovementList() {
   }, [])
 
   useEffect(() => {
+    getWarehousesActive().then(setWarehouses).catch(() => setWarehouses([]))
+  }, [])
+
+  useEffect(() => {
     if (productId) {
       getProduct(productId).then(setProduct).catch(() => setProduct(null))
     }
   }, [productId])
 
-  useEffect(() => { load(page) }, [page, appliedKeyword, appliedProductId, appliedSkuId, appliedSourceType, appliedDateFrom, appliedDateTo])
+  useEffect(() => { load(page) }, [page, appliedKeyword, appliedProductId, appliedSkuId, appliedWarehouseId, appliedSourceType, appliedDateFrom, appliedDateTo])
 
   const handleSearch = (e) => {
     e?.preventDefault()
     setAppliedKeyword(keyword.trim())
     setAppliedProductId(filterProductId)
     setAppliedSkuId(filterSkuId)
+    setAppliedWarehouseId(warehouseId)
     setAppliedSourceType(sourceType)
     setAppliedDateFrom(dateFrom)
     setAppliedDateTo(dateTo)
@@ -70,12 +96,14 @@ export default function StockMovementList() {
     setKeyword('')
     setFilterProductId(productId || '')
     setFilterSkuId('')
+    setWarehouseId('')
     setSourceType('')
     setDateFrom('')
     setDateTo('')
     setAppliedKeyword('')
     setAppliedProductId(productId || '')
     setAppliedSkuId('')
+    setAppliedWarehouseId('')
     setAppliedSourceType('')
     setAppliedDateFrom('')
     setAppliedDateTo('')
@@ -111,7 +139,7 @@ export default function StockMovementList() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-gray-800">库存流水</h1>
-          <p className="text-gray-500 text-sm mt-0.5">查看所有库存变动记录，支持按商品、来源、时间筛选</p>
+          <p className="text-gray-500 text-sm mt-0.5">查看所有库存变动记录，支持按商品、SKU、仓库、来源、时间筛选</p>
         </div>
         <div className="flex gap-2">
           {productId && (
@@ -153,14 +181,28 @@ export default function StockMovementList() {
             <select
               value={filterSkuId}
               onChange={(e) => setFilterSkuId(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm min-w-[140px] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm min-w-[160px] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
             >
               <option value="">全部 SKU</option>
               {product.skus.map((sku) => (
                 <option key={sku.id} value={sku.id}>
-                {sku.sku}
-                {sku.spec_text || ''}
+                  {sku.sku} {getSkuSpecText(sku) || '默认 SKU'}
                 </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {warehouses.length > 0 && (
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-gray-600">仓库</span>
+            <select
+              value={warehouseId}
+              onChange={(e) => setWarehouseId(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm min-w-[140px] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
+            >
+              <option value="">全部仓库</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>{w.name}{w.is_default ? '（默认）' : ''}</option>
               ))}
             </select>
           </label>
@@ -211,11 +253,12 @@ export default function StockMovementList() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[960px] divide-y divide-gray-200">
+              <table className="w-full min-w-[1100px] divide-y divide-gray-200">
                 <thead className="bg-primary-light">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">ID</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">商品</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">仓库</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">来源类型</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">变动前</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">变动值</th>
@@ -238,8 +281,17 @@ export default function StockMovementList() {
                         {m.sku && (
                           <div className="text-gray-400 text-xs mt-0.5">
                             <span className="inline-block bg-gray-100 px-1.5 py-0.5 rounded mr-1">SKU: {m.sku.sku}</span>
+                            {getSkuSpecText(m.sku)}
                           </div>
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {m.warehouse ? (
+                          <div>
+                            <span className={m.warehouse.is_default ? 'text-primary font-medium' : ''}>{m.warehouse.name}</span>
+                            {m.warehouse.is_default && <span className="text-xs text-gray-400 ml-1">（默认）</span>}
+                          </div>
+                        ) : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm">{m.source_type_label ?? m.source_type}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{m.before_quantity}</td>
@@ -248,14 +300,14 @@ export default function StockMovementList() {
                       <td className="px-4 py-3 text-sm">{relatedLink(m)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{m.operator?.name ?? '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 max-w-[160px] truncate" title={m.reason ?? ''}>{m.reason ?? '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{m.created_at}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{formatDateTime(m.created_at)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <span className="text-sm text-gray-500">共 {total} 条记录{(appliedKeyword || appliedProductId || appliedSourceType || appliedDateFrom || appliedDateTo) ? '（当前筛选）' : ''}</span>
+              <span className="text-sm text-gray-500">共 {total} 条记录{(appliedKeyword || appliedProductId || appliedSkuId || appliedWarehouseId || appliedSourceType || appliedDateFrom || appliedDateTo) ? '（当前筛选）' : ''}</span>
               <Pagination currentPage={currentPage} lastPage={lastPage} total={total} onPageChange={(p) => setPage(p)} />
             </div>
           </>

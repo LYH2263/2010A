@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Log;
 class InventoryController extends Controller
 {
     public function __construct(
-        private InventoryService $inventoryService
+        private InventoryService $inventoryService,
+        private \App\Services\WarehouseService $warehouseService
     ) {}
 
     public function index(Request $request): JsonResponse|\Illuminate\View\View
@@ -38,7 +39,7 @@ class InventoryController extends Controller
         $products = $this->inventoryService->list($perPage, ['filters' => $filters]);
         $statsWarehouseId = $warehouseId !== null && $warehouseId !== '' ? (int) $warehouseId : null;
         $stats = $this->inventoryService->stats($statsWarehouseId);
-        $warehouses = (new \App\Services\WarehouseService())->allForSelect();
+        $warehouses = $this->warehouseService->allForSelect();
         if ($request->expectsJson()) {
             return response()->json([
                 'products' => $products,
@@ -95,7 +96,7 @@ class InventoryController extends Controller
             $m->setAppends(['source_type_label']);
         });
 
-        $warehouses = (new \App\Services\WarehouseService())->allForSelect();
+        $warehouses = $this->warehouseService->allForSelect();
 
         return response()->json([
             'movements' => $movements,
@@ -130,9 +131,17 @@ class InventoryController extends Controller
                     return response()->json($sku->fresh()->load(['specValues.spec', 'warehouseStocks.warehouse']));
                 }
             } else {
-                $this->inventoryService->adjust($product, $delta, (string) $reason, $warehouseId ? (int) $warehouseId : null);
-                if ($request->expectsJson()) {
-                    return response()->json($product->fresh()->load('warehouseStocks.warehouse'));
+                $defaultSku = $product->defaultSku;
+                if ($defaultSku) {
+                    $this->inventoryService->adjustSku($defaultSku, $delta, (string) $reason, $warehouseId ? (int) $warehouseId : null);
+                    if ($request->expectsJson()) {
+                        return response()->json($product->fresh()->load(['skus.warehouseStocks.warehouse', 'warehouseStocks.warehouse']));
+                    }
+                } else {
+                    $this->inventoryService->adjust($product, $delta, (string) $reason, $warehouseId ? (int) $warehouseId : null);
+                    if ($request->expectsJson()) {
+                        return response()->json($product->fresh()->load('warehouseStocks.warehouse'));
+                    }
                 }
             }
 

@@ -63,8 +63,23 @@ export default function InventoryAdjust() {
 
   const hasMultiSku = product.skus && product.skus.length > 1
   const selectedSku = selectedSkuId ? product.skus?.find(s => String(s.id) === String(selectedSkuId)) : null
-  const currentStock = selectedSku ? selectedSku.stock : (product.total_stock ?? product.stock)
-  const currentPrice = selectedSku ? selectedSku.price : product.price
+  const defaultSku = product.skus?.find(s => s.is_default) || product.skus?.[0]
+  const effectiveSku = selectedSku || defaultSku
+
+  const getWarehouseStock = () => {
+    if (!warehouseId || !product.stock_by_warehouse) {
+      return selectedSku ? selectedSku.stock : (product.total_stock ?? product.stock)
+    }
+    const wh = product.stock_by_warehouse.find(w => String(w.warehouse_id) === String(warehouseId))
+    if (!wh) return 0
+    if (effectiveSku) {
+      return wh.skus?.[effectiveSku.id] ?? wh.product_stock ?? 0
+    }
+    return wh.product_stock ?? wh.total_stock ?? 0
+  }
+
+  const currentStock = getWarehouseStock()
+  const currentPrice = selectedSku ? selectedSku.price : (defaultSku?.price ?? product.price)
 
   return (
     <div className="space-y-4">
