@@ -343,7 +343,7 @@ export default function OrderCreate() {
                 <button type="button" onClick={() => { setShowQuickCreate(false); setQuickForm({ name: '', phone: '', email: '' }) }} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg text-sm font-medium">取消</button>
               </div>
             </div>
-          )}</div>
+          )}
 
           {warehouses.length > 0 && (
             <div>

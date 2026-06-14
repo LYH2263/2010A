@@ -221,7 +221,8 @@ export default function OrderList() {
                       </div>
                     </td>
                     </tr>
-                  ))}
+                  )
+                  })}
                 </tbody>
               </table>
             </div>

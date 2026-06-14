@@ -295,7 +295,7 @@ export default function InventoryList() {
                               </td>
                               <td className="px-4 py-2 text-sm text-gray-500"></td>
                               <td className="px-4 py-2 text-sm text-primary font-medium">¥{Number(sku.price).toFixed(2)}</td>
-                              <td className={`px-4 py-2 text-sm font-medium ${skuLowStock ? 'text-orange-600' : ''}">{sku.stock}</td>
+                              <td className={`px-4 py-2 text-sm font-medium ${skuLowStock ? 'text-orange-600' : ''}`}>{sku.stock}</td>
                               {warehouses.length > 0 && (
                                 <td className="px-4 py-2">
                                   <div className="flex flex-wrap gap-1">
